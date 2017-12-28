@@ -50,18 +50,28 @@ defmodule Elixirbot.Game do
   def send_command_queue(commands) do
     commands
       |> Enum.reject(&is_nil(&1))
-      |> Enum.map(&Ship.Command.string(&1))
+      |> Enum.map(fn(cmd) -> Ship.Command.string(cmd.command) end)
       |> Enum.join(" ")
+      |> log_message
       |> write_to_output
   end
 
-  def run(map, turn_num \\ 0) do
+  def log_message(message) do
+    Logger.debug("Sending: #{inspect message}")
+    message
+  end
+
+  def run(map, last_turn \\ %{}, turn_num \\ 0) do
     Logger.info("---- Turn #{turn_num} ----")
-    map
+    this_turn = map
       |> update_map
-      |> Elixirbot.make_move
+      |> Elixirbot.make_move(last_turn)
+
+    Logger.info("this_turn: #{inspect this_turn}")
+    this_turn
+      |> Map.values
       |> send_command_queue
 
-    run(map, turn_num + 1)
+    run(map, this_turn, turn_num + 1)
   end
 end

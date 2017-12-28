@@ -1,10 +1,15 @@
 defmodule Position do
+  require Logger
   import Elixirbot.Util
 
   defstruct x: 0.0, y: 0.0, radius: 0.0
 
   def calculate_distance_between(%{ x: origin_x, y: origin_y }, %{ x: target_x, y: target_y }) do
     :math.sqrt(:math.pow(origin_x - target_x, 2) + :math.pow(origin_y - target_y, 2))
+  end
+  def calculate_distance_between(x, y) do
+    Logger.info("Catch all x: #{inspect x}")
+    Logger.info("Catch all y: #{inspect y}")
   end
 
   def calculate_deg_angle_between(origin, target) do

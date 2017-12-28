@@ -10,7 +10,7 @@
 # planet: The ID of the planet the ship is docked to, if applicable.
 # owner: The player ID of the owner, if any. If nil, Entity is not owned.
 defmodule Ship do
-  require Logger
+  require Position
   import Elixirbot.Util
 
   defstruct id: nil, owner: nil, x: nil, y: nil, radius: GameConstants.ship_radius, health: nil, docking_status: nil, docking_progress: nil, planet: nil
@@ -40,6 +40,8 @@ defmodule Ship do
   end
 
   defmodule Command do
+    defstruct command: nil, intent: nil
+
     def string(%ThrustCommand{} = command), do: ThrustCommand.string(command)
     def string(%DockCommand{} = command),   do: DockCommand.string(command)
     def string(%UndockCommand{} = command), do: UndockCommand.string(command)
@@ -51,6 +53,8 @@ defmodule Ship do
       ship.id == ship_id
     end)
   end
+
+  def to_atom(ship), do: String.to_atom("ship#{ship.id}")
 
   # Determine whether a ship can dock to a planet
   #
@@ -75,9 +79,7 @@ defmodule Ship do
   # :param int angle: The angle to move the ship in
   # :return: The command string to be passed to the Halite engine.
   def thrust(params) do
-    struct(ThrustCommand, params)
-    # we want to round angle to nearest integer, but we want to round
-    # magnitude down to prevent overshooting and unintended collisions
+    %Command{ command: struct(ThrustCommand, params) }
   end
 
   # Generate a command to dock to a planet.
@@ -85,14 +87,14 @@ defmodule Ship do
   # :param Planet planet: The planet object to dock to
   # :return: The command string to be passed to the Halite engine.
   def dock(params) do
-    struct(DockCommand, params)
+    %Command{ command: struct(DockCommand, params) }
   end
 
   # Generate a command to undock from the current planet.
 
   # :return: The command trying to be passed to the Halite engine.
   def undock(params) do
-    struct(UndockCommand, params)
+    %Command{ command: struct(UndockCommand, params) }
   end
 
   # Move a ship to a specific target position (Entity). It is recommended to place the position
@@ -120,7 +122,7 @@ defmodule Ship do
     navigate(ship, target, map, speed, avoid_obstacles, max_corrections, angular_step, ignore_ships, ignore_planets)
   end
 
-  def navigate(   _,      _,   _,     _,               _,               0,            _,            _,              _), do: nil
+  def navigate(   _,      _,   _,     _,               _,               0,            _,            _,              _), do: %Command{}
   def navigate(ship, target, map, speed, avoid_obstacles, max_corrections, angular_step, ignore_ships, ignore_planets) do
     distance = Position.calculate_distance_between(ship, target)
     angle    = Position.calculate_deg_angle_between(ship, target)
@@ -144,7 +146,7 @@ defmodule Ship do
       navigate(ship, new_target, map, speed, nav_options)
     else
       safe_speed = Enum.min([distance, speed])
-      %ThrustCommand{ ship: ship, magnitude: safe_speed, angle: angle }
+      thrust(%{ ship: ship, magnitude: safe_speed, angle: angle })
     end
   end
 

@@ -1,4 +1,5 @@
 defmodule GameMap do
+  require Logger
   defstruct my_id: nil, width: nil, height: nil, players: [], planets: []
 
   # The user's player
@@ -9,7 +10,9 @@ defmodule GameMap do
   # player_id: The id of the desired player
   # The player associated with player_id
   def get_player(map, player_id) do
-    Enum.find(all_players(map), &(&1.player_id == player_id))
+    map
+      |> all_players
+      |> Enum.find(&(&1.player_id == player_id))
   end
 
   # List of all players
@@ -24,9 +27,7 @@ defmodule GameMap do
 
   # List of all planets
   def all_planets(map) do
-    Enum.map(map.planets, fn({_, planet}) ->
-      planet
-    end)
+    Map.values(map.planets)
   end
 
   def all_entities(map) do
@@ -51,10 +52,11 @@ defmodule GameMap do
   # entity: The source entity to find distances from
   #
   # Returns a map of distances with the values being lists of entities at that distance
-  def nearby_entities_by_distance(map, entity) do
-    Enum.reduce(all_entities_except(all_entities(map), entity), %{}, fn(foreign_entity, acc) ->
+  def nearby_entities_by_distance(%GameMap{} = map, entity), do: nearby_entities_by_distance(map |> all_entities |> all_entities_except(entity), entity)
+  def nearby_entities_by_distance(entities, entity) do
+    Enum.reduce(entities, %{}, fn(foreign_entity, acc) ->
       distance = Position.calculate_distance_between(entity, foreign_entity)
-      Map.put_new(acc, distance, [])
+      acc = Map.put_new(acc, distance, [])
       Map.put(acc, distance, acc[distance] ++ [foreign_entity])
     end)
   end

@@ -8,6 +8,7 @@
 # health: The planet's health.
 # owner: The player ID of the owner, if any. If nil, Entity is not owned.
 defmodule Planet do
+  require Logger
   import Elixirbot.Util
 
   defstruct id: nil, owner: nil, x: nil, y: nil, radius: nil, health: nil, num_docking_spots: nil, docked_ships: nil
@@ -19,8 +20,8 @@ defmodule Planet do
   end
 
   def all_docked_ships(planet) do
-    { ships, _ } = planet.docked_ships
-    ships
+    Logger.info("All docked ships: #{inspect planet.docked_ships}")
+    planet.docked_ships
   end
 
   def is_owned?(planet) do

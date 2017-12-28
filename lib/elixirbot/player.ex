@@ -3,6 +3,7 @@ defmodule Player do
 
   defstruct player_id: nil, ships: []
 
+  def all_ships(nil), do: []
   def all_ships(player) do
     player.ships
   end
