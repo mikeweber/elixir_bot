@@ -21,3 +21,6 @@ erl_crash.dump
 
 # Ignore compiled bot itself
 MyBot
+
+*.hlt
+*.log

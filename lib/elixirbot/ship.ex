@@ -10,18 +10,40 @@
 # planet: The ID of the planet the ship is docked to, if applicable.
 # owner: The player ID of the owner, if any. If nil, Entity is not owned.
 defmodule Ship do
+  require Logger
   import Elixirbot.Util
 
   defstruct id: nil, owner: nil, x: nil, y: nil, radius: GameConstants.ship_radius, health: nil, docking_status: nil, docking_progress: nil, planet: nil
 
   defmodule ThrustCommand do
     defstruct ship: nil, magnitude: nil, angle: nil
+
+    def string(%ThrustCommand{ ship: ship, magnitude: magnitude, angle: angle }) do
+      "t #{ship.id} #{round(:math.floor(magnitude))} #{round(angle)}"
+    end
   end
+
   defmodule DockCommand do
     defstruct ship: nil, planet: nil
+
+    def string(%DockCommand{ ship: ship, planet: planet }) do
+      "d #{ship.id} #{planet.id}"
+    end
   end
+
   defmodule UndockCommand do
     defstruct ship: nil
+
+    def string(%UndockCommand{ ship: ship }) do
+      "u #{ship.id}"
+    end
+  end
+
+  defmodule Command do
+    def string(%ThrustCommand{} = command), do: ThrustCommand.string(command)
+    def string(%DockCommand{} = command),   do: DockCommand.string(command)
+    def string(%UndockCommand{} = command), do: UndockCommand.string(command)
+    def string(nil), do: nil
   end
 
   def get(ships, ship_id) do
@@ -34,8 +56,17 @@ defmodule Ship do
   #
   # planet: The planet wherein you wish to dock
   # Returns whether a ship can dock or not
-  def can_dock?(ship, planet) do
+  def can_dock?(ship, %{ owner: nil } = planet),                       do: in_docking_range?(ship, planet)
+  def can_dock?(%{ owner: owner } = ship, %{ owner: owner } = planet), do: in_docking_range?(ship, planet)
+  def can_dock?(_, _),                                                 do: false
+
+  def in_docking_range?(ship, planet) do
     Position.calculate_distance_between(ship, planet) <= planet.radius + GameConstants.dock_radius + GameConstants.ship_radius
+  end
+
+  # Return a dock command if we can dock
+  def try_to_dock(%{ship: ship, planet: planet}) do
+    if can_dock?(ship, planet), do: %DockCommand{ ship: ship, planet: planet}, else: nil
   end
 
   # Generate a command to accelerate this ship.
@@ -43,25 +74,25 @@ defmodule Ship do
   # :param int magnitude: The speed through which to move the ship
   # :param int angle: The angle to move the ship in
   # :return: The command string to be passed to the Halite engine.
-  def thrust(%ThrustCommand{ ship: ship, magnitude: magnitude, angle: angle}) do
+  def thrust(params) do
+    struct(ThrustCommand, params)
     # we want to round angle to nearest integer, but we want to round
     # magnitude down to prevent overshooting and unintended collisions
-    "t #{ship.id} #{round(:math.floor(magnitude))} #{round(angle)}"
   end
 
   # Generate a command to dock to a planet.
 
   # :param Planet planet: The planet object to dock to
   # :return: The command string to be passed to the Halite engine.
-  def dock(%{ ship: ship, planet: planet }) do
-    "d #{ship.id} #{planet.id}"
+  def dock(params) do
+    struct(DockCommand, params)
   end
 
   # Generate a command to undock from the current planet.
 
   # :return: The command trying to be passed to the Halite engine.
-  def undock(%UndockCommand{ ship: ship }) do
-    "u #{ship.id}"
+  def undock(params) do
+    struct(UndockCommand, params)
   end
 
   # Move a ship to a specific target position (Entity). It is recommended to place the position
@@ -113,7 +144,7 @@ defmodule Ship do
       navigate(ship, new_target, map, speed, nav_options)
     else
       safe_speed = Enum.min([distance, speed])
-      thrust(%ThrustCommand{ ship: ship, magnitude: safe_speed, angle: angle })
+      %ThrustCommand{ ship: ship, magnitude: safe_speed, angle: angle }
     end
   end
 

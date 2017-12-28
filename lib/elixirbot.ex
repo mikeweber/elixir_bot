@@ -9,7 +9,7 @@ defmodule Elixirbot do
   def make_move_for_ship(map, ship) do
     # For each planet in the game that doesn't have an owner (only non-destroyed planets are included)
     Enum.find_value(unowned_planets(GameMap.all_planets(map)), fn(planet) ->
-      if command = try_to_dock(%{ ship: ship, planet: planet }) do
+      if command = Ship.try_to_dock(%{ ship: ship, planet: planet }) do
         # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
         command
       else
@@ -44,10 +44,5 @@ defmodule Elixirbot do
     Enum.filter(ships, fn(ship) ->
       ship.docking_status == DockingStatus.undocked
     end)
-  end
-
-  # Return a dock command if we can dock
-  def try_to_dock(%{ship: ship, planet: planet}) do
-    if Ship.can_dock?(ship, planet), do: Ship.dock(%{ship: ship, planet: planet}), else: nil
   end
 end

@@ -49,6 +49,8 @@ defmodule Elixirbot.Game do
 
   def send_command_queue(commands) do
     commands
+      |> Enum.reject(&is_nil(&1))
+      |> Enum.map(&Ship.Command.string(&1))
       |> Enum.join(" ")
       |> write_to_output
   end
