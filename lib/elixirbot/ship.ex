@@ -60,17 +60,19 @@ defmodule Ship do
   #
   # planet: The planet wherein you wish to dock
   # Returns whether a ship can dock or not
-  def can_dock?(ship, %{ owner: nil } = planet),                       do: in_docking_range?(ship, planet)
-  def can_dock?(%{ owner: owner } = ship, %{ owner: owner } = planet), do: in_docking_range?(ship, planet)
-  def can_dock?(_, _),                                                 do: false
+  def can_dock?(%Ship{} = ship, %Planet{ owner: nil } = planet),                 do: dockable?(ship, planet)
+  def can_dock?(%Ship{ owner: owner } = ship, %Planet{ owner: owner } = planet), do: dockable?(ship, planet)
+  def can_dock?(_, _), do: false
+
+  def dockable?(ship, planet), do: !Planet.is_full?(planet) && in_docking_range?(ship, planet)
 
   def in_docking_range?(ship, planet) do
     Position.calculate_distance_between(ship, planet) <= planet.radius + GameConstants.dock_radius + GameConstants.ship_radius
   end
 
   # Return a dock command if we can dock
-  def try_to_dock(%{ship: ship, planet: planet}) do
-    if can_dock?(ship, planet), do: %DockCommand{ ship: ship, planet: planet}, else: nil
+  def try_to_dock(%{ship: ship, planet: planet} = params) do
+    if can_dock?(ship, planet), do: dock(params)
   end
 
   # Generate a command to accelerate this ship.

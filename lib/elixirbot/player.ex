@@ -8,6 +8,18 @@ defmodule Player do
     player.ships
   end
 
+  def all_planets(%GameMap{} = map, %Player{} = player) do
+    map
+      |> GameMap.all_planets
+      |> all_planets(player)
+  end
+  def all_planets(planets, %Player{} = player) do
+    planets
+      |> Enum.filter(fn(planet) ->
+        planet.owner == player.player_id
+      end)
+  end
+
   def get_ship(player, ship_id) do
     Ship.get(all_ships(player), ship_id)
   end
