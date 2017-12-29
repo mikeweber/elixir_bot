@@ -1,4 +1,6 @@
 defmodule Elixirbot do
+  require Logger
+
   def make_move(map, last_turn) do
     player = GameMap.get_me(map)
     commands = flying_ships(Player.all_ships(player))
@@ -11,9 +13,9 @@ defmodule Elixirbot do
 
     centroid = find_centroid(player |> Player.all_ships |> flying_ships, Player.all_planets(map, player))
 
-    planets_with_distances(map, centroid)
-      |> dockable_planets(player)
+    planets = planets_with_distances(map, centroid)
       |> prioritized_planets
+      |> dockable_planets(player)
       |> Enum.reduce(commands, fn(planet, acc) ->
         player
           |> Player.all_ships
@@ -29,14 +31,17 @@ defmodule Elixirbot do
   def find_centroid([], planets), do: planets |> find_centroid
   def find_centroid(ships, _),    do: ships |> find_centroid
   def find_centroid(entities) do
-    entities |> List.first
+    sums = entities
+      |> Enum.reduce(%{ x: 0.0, y: 0.0 }, fn(pos, %{ x: x, y: y }) ->
+        %{ x: x + pos.x, y: y + pos.y }
+      end)
+    %Position{ x: sums.x / (length(entities) / 1), y: sums.y / (length(entities) / 1)}
   end
 
   def add_command(nil, acc),                           do: acc
   def add_command(%Ship.Command{ command: nil }, acc), do: acc
-  def add_command(%Ship.Command{} = command, acc) do
-    key = command.command.ship |> Ship.to_atom
-    Map.put_new(acc, key, command)
+  def add_command(%Ship.Command{ command: %{ ship: ship }} = command, acc) do
+    Map.put_new(acc, (ship |> Ship.to_atom), command)
   end
 
   def without_orders(ships, commands) do
@@ -52,7 +57,7 @@ defmodule Elixirbot do
   end
 
   def target_for_docking(%Ship.Command{} = command), do: command
-  def target_for_docking(%Planet{} = planet, %{ ship: ship } = state, orders) do
+  def target_for_docking(%{ ship: ship } = state, %Planet{} = planet, orders) do
     if Planet.has_room?(planet, ship, orders), do: attempt_docking(planet, state)
   end
 
@@ -76,17 +81,19 @@ defmodule Elixirbot do
 
   def nearby_planets(map, origin) do
     planets_with_distances(map, origin)
-      |> Map.values
+      |> Enum.sort_by(fn({ dist, _ }) ->
+        dist
+      end)
+      |> Keyword.values
       |> List.flatten
   end
 
   def prioritized_planets(planets) do
     planets
-      |> Enum.sort_by(fn({ dist, planets }) ->
-         dist / (List.first(planets).num_docking_spots / 1)
+      |> Enum.sort_by(fn({ dist, planet }) ->
+         dist / (planet.num_docking_spots / 1)
       end)
       |> Keyword.values
-      |> List.flatten
   end
 
   def planets_with_distances(map, origin) do
@@ -96,7 +103,10 @@ defmodule Elixirbot do
   end
 
   def dockable_planets(planets, %Player{} = player) do
-    Enum.reject(planets, &Planet.dockable?(&1, player)/2)
+    planets
+      |> Enum.filter(fn(planet) ->
+        Planet.dockable?(player, planet)
+      end)
   end
 
   def flying_ships(ships) do

@@ -54,10 +54,9 @@ defmodule GameMap do
   # Returns a map of distances with the values being lists of entities at that distance
   def nearby_entities_by_distance(%GameMap{} = map, entity), do: nearby_entities_by_distance(map |> all_entities |> all_entities_except(entity), entity)
   def nearby_entities_by_distance(entities, entity) do
-    Enum.reduce(entities, %{}, fn(foreign_entity, acc) ->
+    Enum.reduce(entities, [], fn(foreign_entity, acc) ->
       distance = Position.calculate_distance_between(entity, foreign_entity)
-      acc = Map.put_new(acc, distance, [])
-      Map.put(acc, distance, acc[distance] ++ [foreign_entity])
+      acc ++ [{ distance, foreign_entity }]
     end)
   end
 

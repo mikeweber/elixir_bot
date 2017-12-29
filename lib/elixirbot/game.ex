@@ -49,11 +49,12 @@ defmodule Elixirbot.Game do
 
   def send_command_queue(commands) do
     commands
-      |> Enum.reject(&is_nil(&1))
-      |> Enum.map(fn(cmd) -> Ship.Command.string(cmd.command) end)
+      |> Map.values
+      |> Enum.map(&Ship.Command.string(&1))
       |> Enum.join(" ")
       |> log_message
       |> write_to_output
+    commands
   end
 
   def log_message(message) do
@@ -63,15 +64,22 @@ defmodule Elixirbot.Game do
 
   def run(map, last_turn \\ %{}, turn_num \\ 0) do
     Logger.info("---- Turn #{turn_num} ----")
-    this_turn = map
-      |> update_map
-      |> Elixirbot.make_move(last_turn)
-
-    Logger.info("this_turn: #{inspect this_turn}")
-    this_turn
-      |> Map.values
+    this_turn = determine_moves(map, last_turn)
       |> send_command_queue
 
     run(map, this_turn, turn_num + 1)
+  end
+
+  def determine_moves(map, last_turn) do
+    try do
+      map
+        |> update_map
+        |> Elixirbot.make_move(last_turn)
+    rescue
+      e ->
+        stack = System.stacktrace
+        Logger.error("#{inspect(Exception.message(e))}\n#{Exception.format_stacktrace(stack)}")
+        raise e
+    end
   end
 end

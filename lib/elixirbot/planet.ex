@@ -20,7 +20,6 @@ defmodule Planet do
   end
 
   def all_docked_ships(planet) do
-    Logger.info("All docked ships: #{inspect planet.docked_ships}")
     planet.docked_ships
   end
 

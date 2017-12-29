@@ -42,9 +42,10 @@ defmodule Ship do
   defmodule Command do
     defstruct command: nil, intent: nil
 
-    def string(%ThrustCommand{} = command), do: ThrustCommand.string(command)
-    def string(%DockCommand{} = command),   do: DockCommand.string(command)
-    def string(%UndockCommand{} = command), do: UndockCommand.string(command)
+    def string(%ThrustCommand{} = command),   do: ThrustCommand.string(command)
+    def string(%DockCommand{} = command),     do: DockCommand.string(command)
+    def string(%UndockCommand{} = command),   do: UndockCommand.string(command)
+    def string(%Command{ command: command }), do: Command.string(command)
     def string(nil), do: nil
   end
 
