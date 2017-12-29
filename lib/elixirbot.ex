@@ -8,7 +8,7 @@ defmodule Elixirbot do
       |> Enum.reduce(%{}, fn(ship, acc) ->
         Logger.info("in reduce 1: #{inspect last_turn[ship |> Ship.to_atom]}")
         x = %{ map: map, ship: ship }
-          |> continue_last_turn(last_turn[ship |> Ship.to_atom])
+          |> continue_last_turn(last_turn[ship |> Ship.to_atom], Map.merge(last_turn, acc))
         Logger.info("About to attempt docking with #{inspect x}")
         x = x
           |> attempt_docking
@@ -56,20 +56,16 @@ defmodule Elixirbot do
     end)
   end
 
-  def continue_last_turn(state, nil), do: state
-  def continue_last_turn(state, %Ship.Command{ intent: %Ship.DockCommand{ planet: planet } }) do
+  def continue_last_turn(state, nil, _), do: state
+  def continue_last_turn(state, %Ship.Command{ intent: nil }, _), do: state
+  def continue_last_turn(state, %Ship.Command{ intent: %Ship.DockCommand{ planet: planet } }, orders) do
     Logger.info("continuing last_turn: #{inspect planet}")
     Logger.info("continuing last_turn state: #{inspect Map.keys(state)}")
-    if command = attempt_docking(planet, state) do
-      command
-    else
-      navigate_for_docking(state, planet)
+    command = if Planet.has_room?(planet, state.ship, orders) do
+      attempt_docking(planet, state)
     end
-  end
-  def continue_last_turn(state, turn) do
-    Logger.info("catch all state: #{inspect state}")
-    Logger.info("catch all turn: #{inspect turn}")
-    state
+
+    command || navigate_for_docking(state, planet)
   end
 
   def attempt_docking(%Ship.Command{} = command), do: command

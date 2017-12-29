@@ -28,6 +28,37 @@ defmodule Planet do
     planet.owner != nil
   end
 
+  def has_room?(planet, ship, orders) do
+    planet.num_docking_spots > (length(all_docked_ships(planet)) + length(ships_targeting_planet_for_docking(orders, planet, ship)))
+  end
+
+  def ships_targeting_planet_for_docking(orders, planet, nil), do: ships_targeting_planet_for_docking(orders, planet)
+  def ships_targeting_planet_for_docking(orders, planet, ship) do
+    Logger.info("arity 3")
+    orders
+      |> Enum.reject(fn({ ship_atom, _ }) ->
+        ship_atom == (ship |> Ship.to_atom)
+      end)
+      |> ships_targeting_planet_for_docking(planet)
+  end
+  def ships_targeting_planet_for_docking(orders, planet) do
+    Logger.info("arity 2")
+    orders
+      |> Enum.filter(fn({ _, command }) ->
+        command_targeting_planet?(command, planet)
+      end)
+  end
+
+  def command_targeting_planet?(%Ship.Command{ command: %Ship.DockCommand{ planet: planet }}, planet) do
+    true
+  end
+  def command_targeting_planet?(%Ship.Command{ intent: %Ship.DockCommand{ planet: planet }}, planet) do
+    true
+  end
+  def command_targeting_planet?(_, _) do
+    false
+  end
+
   def is_full?(planet) do
     length(all_docked_ships(planet)) >= planet.num_docking_spots
   end
