@@ -27,13 +27,13 @@ defmodule Planet do
     planet.owner != nil
   end
 
-  def has_room?(planet, ship, orders) do
+  def can_be_targeted_for_docking?(planet, ship, orders) do
     planet.num_docking_spots > (length(all_docked_ships(planet)) + length(ships_targeting_planet_for_docking(orders, planet, ship)))
   end
 
   def dockable?(_, %Planet{ owner: nil}), do: true
-  def dockable?(%Ship{ owner: owner }, %Planet{ owner: owner}), do: true
-  def dockable?(%Player{ player_id: player_id }, %Planet{ owner: player_id  }), do: true
+  def dockable?(%Ship{ owner: owner }, %Planet{ owner: owner} = planet),                 do: !is_full?(planet)
+  def dockable?(%Player{ player_id: player_id }, %Planet{ owner: player_id  } = planet), do: !is_full?(planet)
   def dockable?(_, _), do: false
 
   def ships_targeting_planet_for_docking(orders, planet, nil), do: ships_targeting_planet_for_docking(orders, planet)

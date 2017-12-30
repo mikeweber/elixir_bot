@@ -53,30 +53,28 @@ defmodule Elixirbot do
   def continue_last_turn(state, nil, _), do: state
   def continue_last_turn(state, %Ship.Command{ intent: nil }, _), do: state
   def continue_last_turn(state, %Ship.Command{ intent: %Ship.DockCommand{ planet: planet } }, orders) do
-    target_for_docking(state, planet, orders) || navigate_for_docking(state, planet)
-  end
-
-  def target_for_docking(%Ship.Command{} = command), do: command
-  def target_for_docking(%{ ship: ship } = state, %Planet{} = planet, orders) do
-    if Planet.has_room?(planet, ship, orders), do: attempt_docking(planet, state)
+    attempt_docking(state, planet) || navigate_for_docking(state, planet)
   end
 
   # Fall through when a previous function may have already returned a command
   def attempt_docking(%Ship.Command{} = command), do: command
   # If the nearest planet is in range and has room, dock
   def attempt_docking(%{ map: map, ship: ship } = state) do
-    nearby_planets(map, ship) |> List.first |> attempt_docking(state)
+    planet = nearby_planets(map, ship) |> List.first
+    attempt_docking(state, planet)
   end
-  def attempt_docking(%Planet{} = planet, %{ ship: ship }) do
+  def attempt_docking(%{ ship: ship }, %Planet{} = planet) do
     Ship.try_to_dock(%{ ship: ship, planet: planet })
   end
 
-  def navigate_for_docking(%{ map: map, ship: ship }, planet, speed \\ 7) do
-    %{
-      Ship.navigate(ship, Position.closest_point_to(ship, planet), map, speed)
-      |
-      intent: %Ship.DockCommand{ ship: ship, planet: planet }
-    }
+  def navigate_for_docking(%{ map: map, ship: ship }, planet, orders, speed \\ 7) do
+    if can_be_targeted_for_docking?(planet, ship, orders) do
+      %{
+        Ship.navigate(ship, Position.closest_point_to(ship, planet), map, speed)
+        |
+        intent: %Ship.DockCommand{ ship: ship, planet: planet }
+      }
+    end
   end
 
   def nearby_planets(map, origin) do
