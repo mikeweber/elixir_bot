@@ -4,12 +4,12 @@ defmodule Position do
 
   defstruct x: 0.0, y: 0.0, radius: 0.0
 
-  def calculate_distance_between(%{ x: origin_x, y: origin_y }, %{ x: target_x, y: target_y }) do
-    :math.sqrt(:math.pow(origin_x - target_x, 2) + :math.pow(origin_y - target_y, 2))
+  def calculate_distance_between(origin, target) do
+    calculate_sqrd_distance_between(origin, target) |> :math.sqrt
   end
-  def calculate_distance_between(x, y) do
-    Logger.info("Catch all x: #{inspect x}")
-    Logger.info("Catch all y: #{inspect y}")
+
+  def calculate_sqrd_distance_between(%{ x: origin_x, y: origin_y }, %{ x: target_x, y: target_y }) do
+    :math.pow(origin_x - target_x, 2) + :math.pow(origin_y - target_y, 2)
   end
 
   def calculate_deg_angle_between(origin, target) do
@@ -94,7 +94,7 @@ defmodule Position do
       else
         closest_x = start.x + dx * t
         closest_y = start.y + dy * t
-        closest_distance = Position.calculate_distance_between(%Position{ x: closest_x, y: closest_y }, circle)
+        closest_distance = calculate_distance_between(%Position{ x: closest_x, y: closest_y }, circle)
 
         closest_distance <= circle.radius + fudge
       end

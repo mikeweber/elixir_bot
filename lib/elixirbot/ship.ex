@@ -39,6 +39,10 @@ defmodule Ship do
     end
   end
 
+  defmodule AttackCommand do
+    defstruct ship: nil, target: nil
+  end
+
   defmodule Command do
     defstruct command: nil, intent: nil
 
@@ -46,8 +50,14 @@ defmodule Ship do
     def string(%DockCommand{} = command),     do: DockCommand.string(command)
     def string(%UndockCommand{} = command),   do: UndockCommand.string(command)
     def string(%Command{ command: command }), do: Command.string(command)
-    def string(nil), do: nil
+    def string(_), do: nil
   end
+
+  def has_orders?(nil), do: false
+  def has_orders?(%Command{ command: nil }), do: false
+  def has_orders?(%Command{}), do: true
+  def has_orders?(%Ship{} = ship, %{} = command_map), do: has_orders?(ship |> to_atom, command_map)
+  def has_orders?(ship_id, %{} = command_map), do: has_orders?(command_map[ship_id])
 
   def get(ships, ship_id) do
     Enum.find(ships, fn(ship) ->
@@ -98,6 +108,10 @@ defmodule Ship do
   # :return: The command trying to be passed to the Halite engine.
   def undock(params) do
     %Command{ command: struct(UndockCommand, params) }
+  end
+
+  def attack(params) do
+    %Command{ command: struct(AttackCommand, params), intent: struct(AttackCommand, params) }
   end
 
   # Move a ship to a specific target position (Entity). It is recommended to place the position
@@ -173,7 +187,7 @@ defmodule Ship do
       health:           parse_int(hp),
       docking_status:   parse_int(status),
       docking_progress: parse_int(progress),
-      planet:           parse_int(planet)
+      planet:           if((parse_int(status) == 1), do: parse_int(planet), else: nil)
     }
 
     {ships, tokens} = parse(count_of_ships - 1, player_id, tokens)

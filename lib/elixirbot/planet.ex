@@ -28,8 +28,13 @@ defmodule Planet do
   end
 
   def can_be_targeted_for_docking?(planet, ship, orders) do
-    planet.num_docking_spots > (length(all_docked_ships(planet)) + length(ships_targeting_planet_for_docking(orders, planet, ship)))
+    (planet |> spots_left) > (ships_targeting_planet_for_docking(orders, planet, ship) |> length)
   end
+  def can_be_targeted_for_docking?(planet, orders) do
+    (planet |> spots_left) > (ships_targeting_planet_for_docking(orders, planet) |> length)
+  end
+
+  def spots_left(planet), do: planet.num_docking_spots - (planet |> all_docked_ships |> length)
 
   def dockable?(_, %Planet{ owner: nil}), do: true
   def dockable?(%Ship{ owner: owner }, %Planet{ owner: owner} = planet),                 do: !is_full?(planet)
@@ -51,15 +56,13 @@ defmodule Planet do
       end)
   end
 
-  def command_targeting_planet?(%Ship.Command{ command: %Ship.DockCommand{ planet: planet }}, planet) do
-    true
-  end
-  def command_targeting_planet?(%Ship.Command{ intent: %Ship.DockCommand{ planet: planet }}, planet) do
-    true
-  end
-  def command_targeting_planet?(_, _) do
-    false
-  end
+  def command_targeting_planet?(%Ship.Command{ command: %Ship.DockCommand{ planet: planet }}, planet), do: true
+  def command_targeting_planet?(%Ship.Command{ intent: %Ship.DockCommand{ planet: planet }}, planet), do: true
+  def command_targeting_planet?(_, _), do: false
+
+  def belongs_to_enemy?(%Player{ player_id: player_id }, %Planet{ owner: player_id }), do: false
+  def belongs_to_enemy?(%Ship{ owner: player_id }, %Planet{ owner: player_id }), do: false
+  def belongs_to_enemy?(_, _), do: true
 
   def is_full?(planet) do
     length(all_docked_ships(planet)) >= planet.num_docking_spots
@@ -101,6 +104,6 @@ defmodule Planet do
   defp parse_docked_ship_ids(ship_count, tokens) do
     [ship_id|tokens] = tokens
     {ship_ids, tokens} = parse_docked_ship_ids(ship_count - 1, tokens)
-    {ship_ids++[ship_id], tokens}
+    {ship_ids++[ship_id |> parse_int], tokens}
   end
 end

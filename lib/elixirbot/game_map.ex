@@ -60,6 +60,14 @@ defmodule GameMap do
     end)
   end
 
+  def nearby_entities_by_distance_sqrd(%GameMap{} = map, entity), do: nearby_entities_by_distance_sqrd(map |> all_entities |> all_entities_except(entity), entity)
+  def nearby_entities_by_distance_sqrd(entities, entity) do
+    Enum.reduce(entities, [], fn(foreign_entity, acc) ->
+      distance = Position.calculate_sqrd_distance_between(entity, foreign_entity)
+      acc ++ [{ distance, foreign_entity }]
+    end)
+  end
+
   def all_entities_except(entities, entity) do
     Enum.reject(entities, fn(other) ->
       entity == other
