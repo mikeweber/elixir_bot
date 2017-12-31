@@ -27,7 +27,7 @@ defmodule Position do
   # target: The target to compare against
   # min_distance: Minimum distance specified from the object's outer radius
   # Returns the closest point's coordinates
-  def closest_point_to(origin, %{ x: target_x, y: target_y, radius: target_radius } = target, min_distance \\ 3) do
+  def closest_point_to(origin, %{ x: target_x, y: target_y, radius: target_radius } = target, min_distance \\ 3.0) do
     angle = calculate_angle_between(origin, target)
     radius = target_radius + min_distance
     x = target_x + radius * :math.cos(angle)

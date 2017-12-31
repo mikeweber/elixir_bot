@@ -26,11 +26,11 @@ defmodule Planet do
     planet.owner != nil
   end
 
-  def can_be_targeted_for_docking?(planet, ship, orders) do
-    (planet |> spots_left) > (ships_targeting_planet_for_docking(orders, planet, ship) |> length)
+  def can_be_targeted_for_docking?(planet, %Ship{} = ship, orders) do
+    dockable?(ship, planet) && (planet |> spots_left) > (ships_targeting_planet_for_docking(orders, planet, ship) |> length)
   end
-  def can_be_targeted_for_docking?(planet, orders) do
-    (planet |> spots_left) > (ships_targeting_planet_for_docking(orders, planet) |> length)
+  def can_be_targeted_for_docking?(planet, %Player{} = player, orders) do
+    dockable?(player, planet) && (planet |> spots_left) > (ships_targeting_planet_for_docking(orders, planet) |> length)
   end
 
   def spots_left(planet), do: planet.num_docking_spots - (planet |> all_docked_ships |> length)

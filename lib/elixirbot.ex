@@ -22,7 +22,7 @@ defmodule Elixirbot do
 
     commands = planets
       |> Enum.reduce(commands, fn(planet, acc) ->
-        if Planet.can_be_targeted_for_docking?(planet, Map.merge(last_turn, acc)) do
+        if Planet.can_be_targeted_for_docking?(planet, player, Map.merge(last_turn, acc)) do
           flying_ships
             |> without_orders(Map.merge(last_turn, acc))
             |> Enum.reduce(acc, fn(ship, inner_acc) ->
@@ -82,8 +82,12 @@ defmodule Elixirbot do
 
   def continue_last_turn(state, nil, _), do: state
   def continue_last_turn(state, %Ship.Command{ intent: nil }, _), do: state
-  def continue_last_turn(state, %Ship.Command{ intent: %Ship.DockCommand{ planet: planet } }, orders) do
-    attempt_docking(state, planet) || navigate_for_docking(state, planet, orders)
+  def continue_last_turn(%{ ship: ship } = state, %Ship.Command{ intent: %Ship.DockCommand{ planet: planet } }, orders) do
+    if Planet.can_be_targeted_for_docking?(planet, ship, orders) do
+      attempt_docking(state, planet) || navigate_for_docking(state, planet, orders)
+    else
+      state
+    end
   end
   def continue_last_turn(%{ map: map } = state, %Ship.Command{ intent: %Ship.AttackCommand{ target: target } }, _) do
     if Ship.get(GameMap.all_ships(map), target.id) do
@@ -122,7 +126,7 @@ defmodule Elixirbot do
       Ship.attack(%{ ship: ship, target: target })
     else
       %{
-        Ship.navigate(ship, target, map, speed)
+        Ship.navigate(ship, Position.closest_point_to(ship, target, GameConstants.weapon_radius), map, speed)
         |
         intent: %Ship.AttackCommand{ ship: ship, target: target }
       }
