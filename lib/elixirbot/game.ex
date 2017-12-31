@@ -50,6 +50,7 @@ defmodule Elixirbot.Game do
   def send_command_queue(commands) do
     commands
       |> Map.values
+      |> Enum.filter(&Ship.has_orders?(&1))
       |> Enum.map(&Ship.Command.string(&1))
       |> Enum.join(" ")
       |> log_message

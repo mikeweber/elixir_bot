@@ -1,6 +1,4 @@
 defmodule Elixirbot do
-  require Logger
-
   def make_move(map, last_turn) do
     player = GameMap.get_me(map)
     commands = flying_ships(Player.all_ships(player))
@@ -28,7 +26,6 @@ defmodule Elixirbot do
           flying_ships
             |> without_orders(Map.merge(last_turn, acc))
             |> Enum.reduce(acc, fn(ship, inner_acc) ->
-              Logger.info("Ship #{ship.id} might navigate towards Planet #{planet.id}")
               navigate_for_docking(%{ map: map, ship: ship }, planet, Map.merge(last_turn, inner_acc))
                 |> add_command(inner_acc)
             end)
@@ -38,26 +35,27 @@ defmodule Elixirbot do
       end)
 
     # Starting with the ships furthest from the centroid, start attacking the closest enemies
-    ships = player
+    player
       |> Player.all_ships
       |> flying_ships
       |> without_orders(Map.merge(last_turn, commands))
-
-    ships = ships
       |> GameMap.nearby_entities_by_distance_sqrd(centroid)
       |> furthest_away
-    Logger.info("Ships without orders (sorted): #{inspect ships}")
-    ships
       |> Enum.reduce(commands, fn(ship, cmds) ->
-        planets_with_distances(map, ship)
+        enemy_planet = planets_with_distances(map, ship)
           |> prioritized_planets
           |> enemy_planets(player)
           |> List.first
-          |> Planet.all_docked_ships
-          |> Enum.reject(&is_nil/1)
-          |> List.first
-          |> navigate_for_attacking(%{ map: map, ship: ship })
-          |> add_command(cmds)
+        if enemy_planet do
+          enemy_planet
+            |> Planet.all_docked_ships
+            |> Enum.reject(&is_nil/1)
+            |> List.first
+            |> navigate_for_attacking(%{ map: map, ship: ship })
+            |> add_command(cmds)
+        else
+          cmds
+        end
       end)
   end
 

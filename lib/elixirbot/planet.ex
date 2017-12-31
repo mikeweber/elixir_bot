@@ -8,10 +8,9 @@
 # health: The planet's health.
 # owner: The player ID of the owner, if any. If nil, Entity is not owned.
 defmodule Planet do
-  require Logger
   import Elixirbot.Util
 
-  defstruct id: nil, owner: nil, x: nil, y: nil, radius: nil, health: nil, num_docking_spots: nil, docked_ships: nil
+  defstruct id: nil, owner: nil, x: nil, y: nil, radius: nil, health: nil, num_docking_spots: nil, docked_ships: []
 
   def get_docked_ship(planet, id) do
     Enum.find(all_docked_ships(planet), fn(ship) ->
@@ -104,6 +103,6 @@ defmodule Planet do
   defp parse_docked_ship_ids(ship_count, tokens) do
     [ship_id|tokens] = tokens
     {ship_ids, tokens} = parse_docked_ship_ids(ship_count - 1, tokens)
-    {ship_ids++[ship_id |> parse_int], tokens}
+    {ship_ids++[parse_int(ship_id)], tokens}
   end
 end

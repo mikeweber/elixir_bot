@@ -1,11 +1,8 @@
 defmodule GameMap do
-  require Logger
   defstruct my_id: nil, width: nil, height: nil, players: [], planets: []
 
   # The user's player
-  def get_me(map) do
-    get_player(map, map.my_id)
-  end
+  def get_me(map), do: get_player(map, map.my_id)
 
   # player_id: The id of the desired player
   # The player associated with player_id
@@ -16,32 +13,26 @@ defmodule GameMap do
   end
 
   # List of all players
-  def all_players(map) do
-    map.players
-  end
+  def all_players(map), do: map.players
 
   # The planet associated with planet_id
-  def get_planet(map, planet_id) do
-    Enum.find(map.planets, &(&1.id == planet_id))
-  end
+  def get_planet(map, planet_id), do: Enum.find(map.planets, &(&1.id == planet_id))
 
   # List of all planets
-  def all_planets(map) do
-    Map.values(map.planets)
-  end
+  def all_planets(map), do: Map.values(map.planets)
 
-  def all_entities(map) do
-    all_planets(map) ++ all_ships(map)
-  end
+  def all_entities(map), do: all_planets(map) ++ all_ships(map)
 
-  def all_ships(map) do
-    Enum.map(all_players(map), &Player.all_ships/1)
+  def all_ships(%GameMap{} = map), do: all_players(map) |> all_ships
+  def all_ships(players) do
+    players
+      |> Enum.map(&Player.all_ships(&1))
       |> List.flatten
   end
 
   def update(map, tokens) do
     {tokens, players} = tokens |> Player.parse
-    {[], planets}     = tokens |> Planet.parse(all_ships(map))
+    {[], planets}     = tokens |> Planet.parse(players |> all_ships)
     with_entities(map, {players, planets})
   end
 

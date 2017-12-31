@@ -59,11 +59,7 @@ defmodule Ship do
   def has_orders?(%Ship{} = ship, %{} = command_map), do: has_orders?(ship |> to_atom, command_map)
   def has_orders?(ship_id, %{} = command_map), do: has_orders?(command_map[ship_id])
 
-  def get(ships, ship_id) do
-    Enum.find(ships, fn(ship) ->
-      ship.id == ship_id
-    end)
-  end
+  def get(ships, ship_id), do: Enum.find(ships, &(ship_id == &1.id))
 
   def to_atom(ship), do: String.to_atom("ship#{ship.id}")
 
@@ -187,7 +183,7 @@ defmodule Ship do
       health:           parse_int(hp),
       docking_status:   parse_int(status),
       docking_progress: parse_int(progress),
-      planet:           if((parse_int(status) == 1), do: parse_int(planet), else: nil)
+      planet:           if((parse_int(status) == 1), do: parse_int(planet))
     }
 
     {ships, tokens} = parse(count_of_ships - 1, player_id, tokens)
