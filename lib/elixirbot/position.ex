@@ -21,6 +21,16 @@ defmodule Position do
     :math.atan2(target_y - origin_y, target_x - origin_x)
   end
 
+  def find_centroid([], planets), do: planets |> find_centroid
+  def find_centroid(ships, _),    do: ships |> find_centroid
+  def find_centroid(entities) do
+    sums = entities
+      |> Enum.reduce(%{ x: 0.0, y: 0.0 }, fn(pos, %{ x: x, y: y }) ->
+        %{ x: x + pos.x, y: y + pos.y }
+      end)
+    %Position{ x: sums.x / (length(entities) / 1), y: sums.y / (length(entities) / 1)}
+  end
+
   # Find the closest point to the given ship near the given target, outside its given radius,
   # with an added fudge of min_distance.
   #
@@ -36,8 +46,19 @@ defmodule Position do
     %Position{ x: x, y: y }
   end
 
-  def to_radians(angle) do
+  def to_degrees(angle) do
     angle / :math.pi * 180.0
+  end
+
+  def in_orbit(planet, altitude, deg_angle) do
+    angle = deg_angle
+      |> angle_deg_clipped
+      |> angle_deg_to_rad
+
+    %Position{
+      x: planet.x + :math.cos(angle) * (planet.radius + altitude),
+      y: planet.y + :math.sin(angle) * (planet.radius + altitude)
+    }
   end
 
   # Check whether there is a straight-line path to the given point, without planetary obstacles in between.

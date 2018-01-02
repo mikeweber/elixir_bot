@@ -1,4 +1,6 @@
 defmodule Elixirbot do
+  require Logger
+
   def make_move(map, last_turn) do
     player = GameMap.get_me(map)
     commands = flying_ships(Player.all_ships(player))
@@ -9,11 +11,12 @@ defmodule Elixirbot do
           |> add_command(acc)
       end)
 
-    centroid = find_centroid(player |> Player.all_ships |> flying_ships, Player.all_planets(map, player))
+    centroid = Position.find_centroid(player |> Player.all_ships |> flying_ships, Player.all_planets(map, player))
 
     # Target the closest, biggest planets for docking
     planets = planets_with_distances(map, centroid)
       |> prioritized_planets
+      |> Keyword.values
       |> dockable_planets(player)
 
     flying_ships = player
@@ -35,15 +38,19 @@ defmodule Elixirbot do
       end)
 
     # Starting with the ships furthest from the centroid, start attacking the closest enemies
-    player
+    ships_without_orders = player
       |> Player.all_ships
       |> flying_ships
       |> without_orders(Map.merge(last_turn, commands))
       |> GameMap.nearby_entities_by_distance_sqrd(centroid)
       |> furthest_away
+
+    commands = ships_without_orders
+      |> Enum.slice(0, attack_strength(ships_without_orders) |> round)
       |> Enum.reduce(commands, fn(ship, cmds) ->
         enemy_planet = planets_with_distances(map, ship)
-          |> prioritized_planets
+          |> prioritize_for_attack(map)
+          |> Keyword.values
           |> enemy_planets(player)
           |> List.first
         if enemy_planet do
@@ -57,16 +64,29 @@ defmodule Elixirbot do
           cmds
         end
       end)
+
+    player
+      |> Player.all_ships
+      |> flying_ships
+      |> without_orders(Map.merge(last_turn, commands))
+      |> Enum.reduce(commands, fn(ship, cmds) ->
+        my_planet = planets_with_distances(map, ship)
+          |> prioritize_for_defense(Map.merge(last_turn, commands))
+          |> Keyword.values
+          |> my_planets(player)
+          |> List.first
+        if my_planet do
+          my_planet
+            |> navigate_for_defending(%{ map: map, ship: ship })
+            |> add_command(cmds)
+        else
+          cmds
+        end
+      end)
   end
 
-  def find_centroid([], planets), do: planets |> find_centroid
-  def find_centroid(ships, _),    do: ships |> find_centroid
-  def find_centroid(entities) do
-    sums = entities
-      |> Enum.reduce(%{ x: 0.0, y: 0.0 }, fn(pos, %{ x: x, y: y }) ->
-        %{ x: x + pos.x, y: y + pos.y }
-      end)
-    %Position{ x: sums.x / (length(entities) / 1), y: sums.y / (length(entities) / 1)}
+  def attack_strength(flying_ships) do
+    length(flying_ships) * 2.0 / 3.0
   end
 
   def add_command(nil, acc),                           do: acc
@@ -92,6 +112,13 @@ defmodule Elixirbot do
   def continue_last_turn(%{ map: map } = state, %Ship.Command{ intent: %Ship.AttackCommand{ target: target } }, _) do
     if Ship.get(GameMap.all_ships(map), target.id) do
       navigate_for_attacking(target, state)
+    else
+      state
+    end
+  end
+  def continue_last_turn(%{ ship: ship } = state, %Ship.Command{ intent: %Ship.DefendPlanetCommand{ target: target } }, _) do
+    if Planet.belongs_to_me?(ship, target) do
+      navigate_for_defending(target, state)
     else
       state
     end
@@ -133,6 +160,33 @@ defmodule Elixirbot do
     end
   end
 
+  def navigate_for_defending(nil, state), do: state
+  def navigate_for_defending(target, %{ map: map, ship: ship } = state, speed \\ 7) do
+    %{
+      if Ship.in_range?(ship, target, 7) do
+        Planet.ships_in_attacking_range(target, map) |> defend_planet(state, target)
+      else
+        # Navigate to the planet
+        Ship.navigate(ship, Position.closest_point_to(ship, target, GameConstants.dock_radius), map, speed)
+      end
+      |
+      intent: %Ship.DefendPlanetCommand{ ship: ship, target: target }
+    }
+  end
+
+  def defend_planet([], %{ ship: ship, map: map }, planet) do
+    # "Orbit" the planet
+    ship_angle = (Position.calculate_angle_between(planet, ship) |> Position.to_degrees)
+    angle = (ship_angle + 9) |> Elixirbot.Util.angle_deg_clipped
+    pos   = Position.in_orbit(planet, GameConstants.weapon_radius, angle)
+    dist  = [Position.calculate_distance_between(ship, pos), 7] |> Enum.min
+    Ship.navigate(ship, pos, map, :math.floor(dist))
+  end
+  def defend_planet(enemies, state, _) do
+    # Attack the nearest ship
+    navigate_for_attacking(enemies |> List.first, state)
+  end
+
   def in_attack_range?(ship, target) do
     Position.calculate_distance_between(ship, target) <= GameConstants.weapon_radius
   end
@@ -151,7 +205,40 @@ defmodule Elixirbot do
       |> Enum.sort_by(fn({ dist, planet }) ->
          dist / (planet.num_docking_spots / 1)
       end)
-      |> Keyword.values
+  end
+
+  def prioritize_for_attack(planets, map) do
+    planets
+      |> Enum.sort_by(fn({ dist, planet }) ->
+        planet_attack_score(dist, planet, map)
+      end)
+  end
+
+  def planet_dock_score(dist, planet, map) do
+    normalized_distance(dist, map) / normalized_docking_score(planet, map)
+  end
+
+  def planet_attack_score(dist, planet, map) do
+    num_docked_ships = planet.docked_ships |> length
+    normalized_distance(dist, map) / normalized_docking_score(planet, map) * (1 - (num_docked_ships / planet.num_docking_spots))
+  end
+
+  def normalized_distance(dist, map) do
+    dist / map.width
+  end
+
+  def normalized_docking_score(planet, map) do
+    planet.num_docking_spots / Enum.max_by(GameMap.all_planets(map), &(&1.num_docking_spots)).num_docking_spots
+  end
+
+  def prioritize_for_defense(planets, orders) do
+    planets
+      |> Enum.reject(fn({_, planet}) ->
+        planet.num_docking_spots * 1.5 <= (Planet.ships_defending(planet, orders) |> length)
+      end)
+      |> Enum.sort_by(fn({ dist, planet }) ->
+        dist / planet.num_docking_spots
+      end)
   end
 
   def furthest_away(entities) do
@@ -175,11 +262,12 @@ defmodule Elixirbot do
       end)
   end
 
+  def my_planets(planets, %Player{} = player) do
+    planets |> Enum.reject(&Planet.belongs_to_enemy?(player, &1))
+  end
+
   def enemy_planets(planets, %Player{} = player) do
-    planets
-      |> Enum.filter(fn(planet) ->
-        Planet.belongs_to_enemy?(player, planet)
-      end)
+    planets |> Enum.filter(&Planet.belongs_to_enemy?(player, &1))
   end
 
   def flying_ships(ships) do

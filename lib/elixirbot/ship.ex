@@ -43,6 +43,10 @@ defmodule Ship do
     defstruct ship: nil, target: nil
   end
 
+  defmodule DefendPlanetCommand do
+    defstruct ship: nil, target: nil
+  end
+
   defmodule Command do
     defstruct command: nil, intent: nil
 
@@ -74,12 +78,19 @@ defmodule Ship do
   def dockable?(ship, planet), do: !Planet.is_full?(planet) && in_docking_range?(ship, planet)
 
   def in_docking_range?(ship, planet) do
-    Position.calculate_distance_between(ship, planet) <= planet.radius + GameConstants.dock_radius + GameConstants.ship_radius
+    in_range?(ship, planet, GameConstants.dock_radius + GameConstants.ship_radius)
+  end
+  def in_range?(ship, planet, range) do
+    Position.calculate_distance_between(ship, planet) <= planet.radius + range
   end
 
   # Return a dock command if we can dock
   def try_to_dock(%{ship: ship, planet: planet} = params) do
     if can_dock?(ship, planet), do: dock(params)
+  end
+
+  def starburst(ship, centroid, speed \\ 4) do
+    thrust(%{ ship: ship, magnitude: speed, angle: Position.calculate_deg_angle_between(centroid, ship)})
   end
 
   # Generate a command to accelerate this ship.
@@ -129,7 +140,7 @@ defmodule Ship do
   # Return the command trying to be passed to the Halite engine or nil if movement is not possible within max_corrections degrees.
   def navigate(ship, target, map, speed, options \\ []) do
     # Default options
-    defaults = [avoid_obstacles: true, max_corrections: 90, angular_step: 1, ignore_ships: false, ignore_planets: false]
+    defaults = [avoid_obstacles: true, max_corrections: 21, angular_step: 1.0, ignore_ships: false, ignore_planets: false]
     %{ avoid_obstacles: avoid_obstacles, max_corrections: max_corrections, angular_step: angular_step, ignore_ships: ignore_ships, ignore_planets: ignore_planets } = Keyword.merge(defaults, options) |> Enum.into(%{})
 
     navigate(ship, target, map, speed, avoid_obstacles, max_corrections, angular_step, ignore_ships, ignore_planets)
@@ -152,7 +163,7 @@ defmodule Ship do
       nav_options   = [
         avoid_obstacles: avoid_obstacles,
         max_corrections: max_corrections - 1,
-        angular_step:    angular_step,
+        angular_step:    angular_step * -1.3,
         ignore_ships:    ignore_ships,
         ignore_planets:  ignore_planets
       ]

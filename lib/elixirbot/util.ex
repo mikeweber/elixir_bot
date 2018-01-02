@@ -1,5 +1,6 @@
 defmodule Elixirbot.Util do
   @rad_in_deg (180/:math.pi)
+  @deg_in_rad (:math.pi/180)
 
   @doc """
   Converts radians to degrees
@@ -12,6 +13,10 @@ defmodule Elixirbot.Util do
     angle_rad * @rad_in_deg
   end
 
+  def angle_deg_to_rad(angle_deg) do
+    angle_deg * @deg_in_rad
+  end
+
   @doc """
   Converts radians to degrees and ensure between 0 and 360
 
@@ -22,7 +27,11 @@ defmodule Elixirbot.Util do
       156
   """
   def angle_rad_to_deg_clipped(angle_rad) do
-    (angle_rad_to_deg(angle_rad) |> round |> rem(360)) + 360 |> rem(360)
+    angle_rad_to_deg(angle_rad) |> angle_deg_clipped
+  end
+
+  def angle_deg_clipped(angle_deg) do
+    (angle_deg |> round |> rem(360)) + 360 |> rem(360)
   end
 
   def parse_int(nil), do: nil

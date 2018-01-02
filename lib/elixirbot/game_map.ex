@@ -1,5 +1,5 @@
 defmodule GameMap do
-  defstruct my_id: nil, width: nil, height: nil, players: [], planets: []
+  defstruct my_id: nil, turn: 0, width: nil, height: nil, players: [], planets: []
 
   # The user's player
   def get_me(map), do: get_player(map, map.my_id)
@@ -30,14 +30,14 @@ defmodule GameMap do
       |> List.flatten
   end
 
-  def update(map, tokens) do
+  def update(map, turn, tokens) do
     {tokens, players} = tokens |> Player.parse
     {[], planets}     = tokens |> Planet.parse(players |> all_ships)
-    with_entities(map, {players, planets})
+    with_entities(map, turn, {players, planets})
   end
 
-  def with_entities(map, { players, planets }) do
-    Map.merge(map, %{players: players, planets: planets})
+  def with_entities(map, turn, { players, planets }) do
+    Map.merge(map, %{ turn: turn, players: players, planets: planets})
   end
 
   # entity: The source entity to find distances from

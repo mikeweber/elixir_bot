@@ -63,9 +63,39 @@ defmodule Planet do
   def belongs_to_enemy?(%Ship{ owner: player_id }, %Planet{ owner: player_id }), do: false
   def belongs_to_enemy?(_, _), do: true
 
+  def belongs_to_me?(%Player{ player_id: player_id }, %Planet{ owner: player_id }), do: true
+  def belongs_to_me?(%Ship{ owner: player_id }, %Planet{ owner: player_id }), do: true
+  def belongs_to_me?(_, _), do: false
+
   def is_full?(planet) do
     length(all_docked_ships(planet)) >= planet.num_docking_spots
   end
+
+  def ships_in_attacking_range(planet, %GameMap{} = map) do
+    ships_in_attacking_range(planet, GameMap.all_ships(map))
+      |> Enum.filter(&belongs_to_enemy?(&1, planet))
+  end
+  def ships_in_attacking_range(planet, enemies) do
+    enemies
+      |> GameMap.nearby_entities_by_distance(planet)
+      |> Enum.filter(fn({ dist, _ }) ->
+        dist - planet.radius <= GameConstants.weapon_radius + GameConstants.dock_radius
+      end)
+      |> Enum.sort_by(fn({ dist, _ }) ->
+        dist
+      end)
+      |> Keyword.values
+  end
+
+  def ships_defending(planet, orders) do
+    orders
+      |> Enum.filter(fn({ _, cmd }) ->
+        defending_planet?(planet, cmd.intent)
+      end)
+  end
+
+  def defending_planet?(planet, %Ship.DefendPlanetCommand{ target: planet }), do: true
+  def defending_planet?(_, _), do: false
 
   def parse(tokens, ships) do
     [count_of_planets|tokens] = tokens
