@@ -30,6 +30,14 @@ defmodule GameMap do
       |> List.flatten
   end
 
+  def docked_ships(map) do
+    map
+      |> all_planets
+      |> Enum.reduce([], fn(planet, ships)->
+        ships ++ planet.docked_ships
+      end)
+  end
+
   def update(map, turn, tokens) do
     {tokens, players} = tokens |> Player.parse
     {[], planets}     = tokens |> Planet.parse(players |> all_ships)

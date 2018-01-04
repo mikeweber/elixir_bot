@@ -23,18 +23,23 @@ defmodule Elixirbot do
       |> Player.all_ships
       |> flying_ships
 
+    reinforcing_ships = flying_ships
+      |> Enum.slice(0, reinforcement_strength(map, player, Map.merge(last_turn, commands)))
+
+    # Reinforce
+    Logger.info("Will reinforce with #{reinforcing_ships |> length} ships")
     commands = planets
       |> Enum.reduce(commands, fn(planet, acc) ->
         if Planet.can_be_targeted_for_docking?(planet, player, Map.merge(last_turn, acc)) do
-          flying_ships
+          reinforcing_ships
             |> without_orders(Map.merge(last_turn, acc))
             |> Enum.reduce(acc, fn(ship, inner_acc) ->
               navigate_for_docking(%{ map: map, ship: ship }, planet, Map.merge(last_turn, inner_acc))
                 |> add_command(inner_acc)
             end)
-          else
-            acc
-          end
+        else
+          acc
+        end
       end)
 
     # Starting with the ships furthest from the centroid, start attacking the closest enemies
@@ -44,9 +49,10 @@ defmodule Elixirbot do
       |> without_orders(Map.merge(last_turn, commands))
       |> GameMap.nearby_entities_by_distance_sqrd(centroid)
       |> furthest_away
+      |> Enum.slice(0, attack_strength(map, player, Map.merge(last_turn, commands)))
 
+    Logger.info("Will attack with #{ships_without_orders |> length} ships")
     commands = ships_without_orders
-      |> Enum.slice(0, attack_strength(ships_without_orders) |> round)
       |> Enum.reduce(commands, fn(ship, cmds) ->
         enemy_planet = planets_with_distances(map, ship)
           |> prioritize_for_attack(map)
@@ -85,8 +91,35 @@ defmodule Elixirbot do
       end)
   end
 
-  def attack_strength(flying_ships) do
-    length(flying_ships) * 2.0 / 3.0
+  def reinforcement_strength(map, player, orders) do
+    num_ships       = map |> Player.all_planets(player) |> length
+    reinforcers     = orders |> Enum.filter(fn({_, %Ship.Command{ intent: intent } })->
+      is_docking?(intent)
+    end) |> length
+    reinforcers     = reinforcers + (map |> GameMap.docked_ships |> length)
+    available_spots = map |> available_docking_spots
+    Enum.max([Enum.min([Enum.max([num_ships / 3, 3]), available_spots]) - reinforcers, 0])
+  end
+
+  def attack_strength(map, player, orders) do
+    num_ships = map |> Player.all_planets(player) |> length
+    attackers = orders |> Enum.filter(fn({_, %Ship.Command{ intent: intent } })->
+      is_attacking?(intent)
+    end) |> length
+    Enum.max([0, num_ships / 3 - attackers]) |> round
+  end
+
+  def is_docking?(%Ship.DockCommand{}), do: true
+  def is_docking?(_), do: false
+  def is_attacking?(%Ship.AttackCommand{}), do: true
+  def is_attacking?(_), do: false
+
+  def available_docking_spots(map) do
+    GameMap.all_planets(map)
+      |> Planet.dockable_planets(GameMap.get_me(map))
+      |> Enum.reduce(0, fn(planet, sum)->
+        sum + Planet.spots_left(planet)
+      end)
   end
 
   def add_command(nil, acc),                           do: acc
@@ -104,9 +137,13 @@ defmodule Elixirbot do
   def continue_last_turn(state, %Ship.Command{ intent: nil }, _), do: state
   def continue_last_turn(%{ ship: ship } = state, %Ship.Command{ intent: %Ship.DockCommand{ planet: planet } }, orders) do
     if Planet.can_be_targeted_for_docking?(planet, ship, orders) do
-      attempt_docking(state, planet) || navigate_for_docking(state, planet, orders)
+      navigate_for_docking(state, planet, orders)
     else
-      state
+      if Position.calculate_distance_between(planet, ship) - planet.radius <= 20 && length(planet.docked_ships) > 0 do
+        navigate_for_attacking(planet.docked_ships |> List.first, state)
+      else
+        state
+      end
     end
   end
   def continue_last_turn(%{ map: map } = state, %Ship.Command{ intent: %Ship.AttackCommand{ target: target } }, _) do
@@ -124,6 +161,19 @@ defmodule Elixirbot do
     end
   end
 
+  def docking_spot(planet, ship, orders) do
+    (planet.docked_ships |> List.first) || Enum.find(orders, fn({_, %Ship.Command{ intent: intent }}) ->
+      if potential_ship = docking_ship(intent, planet) do
+        unless ship.id == potential_ship.id do
+          if potential_ship.docking_progress > 0, do: potential_ship
+        end
+      end
+    end)
+  end
+
+  def docking_ship(%Ship.DockCommand{ ship: ship, planet: planet }, planet), do: ship
+  def docking_ship(_, _), do: false
+
   # Fall through when a previous function may have already returned a command
   def attempt_docking(%Ship.Command{} = command), do: command
   # If the nearest planet is in range and has room, dock
@@ -137,15 +187,28 @@ defmodule Elixirbot do
 
   def navigate_for_docking(%{ map: map, ship: ship } = state, planet, orders, speed \\ 7) do
     if Planet.can_be_targeted_for_docking?(planet, ship, orders) do
-      %{
-        Ship.navigate(ship, Position.closest_point_to(ship, planet), map, speed)
-        |
-        intent: %Ship.DockCommand{ ship: ship, planet: planet }
-      }
+      if Ship.in_docking_range?(ship, planet) do
+        attempt_docking(state, planet) || state
+      else
+        # Logger.info("Planet #{planet.id} is targeted by Ship #{ship.id}")
+        %{
+          Ship.navigate(ship, position_for_docking(ship, planet, orders), map, speed)
+          |
+          intent: %Ship.DockCommand{ ship: ship, planet: planet }
+        }
+      end
     else
       state
     end
   end
+
+  def position_for_docking(%Ship{} = ship, %Planet{} = planet, nil), do: planet.docked_ships |> List.first || Position.closest_point_to(ship, planet, 3)
+  def position_for_docking(%Ship{} = ship, %Planet{}, %Ship{} = docked_ship) do
+    p = Position.closest_point_to(ship, docked_ship, 1)
+    # Logger.info("Ship #{ship.id} is docking near ship #{docked_ship.id} at %{ x: #{p.x}, y: #{p.y} }")
+    p
+  end
+  def position_for_docking(%Ship{} = ship, %Planet{} = planet, orders), do: position_for_docking(ship, planet, docking_spot(planet, ship, orders))
 
   def navigate_for_attacking(nil, state), do: state
   def navigate_for_attacking(target, %{ map: map, ship: ship }, speed \\ 7) do
@@ -161,30 +224,20 @@ defmodule Elixirbot do
   end
 
   def navigate_for_defending(nil, state), do: state
-  def navigate_for_defending(target, %{ map: map, ship: ship } = state, speed \\ 7) do
+  def navigate_for_defending(target, %{ map: map, ship: ship }, speed \\ 7) do
     %{
-      if Ship.in_range?(ship, target, 7) do
-        Planet.ships_in_attacking_range(target, map) |> defend_planet(state, target)
-      else
-        # Navigate to the planet
-        Ship.navigate(ship, Position.closest_point_to(ship, target, GameConstants.dock_radius), map, speed)
-      end
+      # Navigate to the ships docked on the planet
+      Ship.navigate(ship, defensive_position(ship, (target.docked_ships |> List.first) || target), map, speed)
       |
       intent: %Ship.DefendPlanetCommand{ ship: ship, target: target }
     }
   end
 
-  def defend_planet([], %{ ship: ship, map: map }, planet) do
-    # "Orbit" the planet
-    ship_angle = (Position.calculate_angle_between(planet, ship) |> Position.to_degrees)
-    angle = (ship_angle + 9) |> Elixirbot.Util.angle_deg_clipped
-    pos   = Position.in_orbit(planet, GameConstants.weapon_radius, angle)
-    dist  = [Position.calculate_distance_between(ship, pos), 7] |> Enum.min
-    Ship.navigate(ship, pos, map, :math.floor(dist))
+  def defensive_position(ship, %Planet{} = target) do
+    Position.closest_point_to(ship, target, 3)
   end
-  def defend_planet(enemies, state, _) do
-    # Attack the nearest ship
-    navigate_for_attacking(enemies |> List.first, state)
+  def defensive_position(ship, %Ship{} = docked_ship) do
+    Position.closest_point_to(ship, docked_ship, 1)
   end
 
   def in_attack_range?(ship, target) do

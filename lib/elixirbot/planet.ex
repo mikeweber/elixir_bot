@@ -22,6 +22,10 @@ defmodule Planet do
     planet.docked_ships
   end
 
+  def dockable_planets(planets, player) do
+    planets |> Enum.filter(&dockable?(player, &1))
+  end
+
   def is_owned?(planet) do
     planet.owner != nil
   end

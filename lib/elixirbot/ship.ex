@@ -77,9 +77,11 @@ defmodule Ship do
 
   def dockable?(ship, planet), do: !Planet.is_full?(planet) && in_docking_range?(ship, planet)
 
-  def in_docking_range?(ship, planet) do
+  def in_docking_range?(ship, %Planet{} = planet) do
     in_range?(ship, planet, GameConstants.dock_radius + GameConstants.ship_radius)
   end
+  def in_docking_range?(ship, %Ship{} = docked_ship), do: in_range?(ship, docked_ship, 1)
+
   def in_range?(ship, planet, range) do
     Position.calculate_distance_between(ship, planet) <= planet.radius + range
   end
