@@ -23,11 +23,12 @@ defmodule Elixirbot do
       |> Player.all_ships
       |> flying_ships
 
+    {desired_reinforcers, actual_reinforcers} = reinforcement_strength(map, player, Map.merge(last_turn, commands))
     reinforcing_ships = flying_ships
-      |> Enum.slice(0, reinforcement_strength(map, player, Map.merge(last_turn, commands)))
+      |> Enum.slice(0, actual_reinforcers)
 
     # Reinforce
-    Logger.info("Will reinforce with #{reinforcing_ships |> length} ships")
+    Logger.info("Will reinforce with #{actual_reinforcers} more ships out of desired #{desired_reinforcers}")
     commands = planets
       |> Enum.reduce(commands, fn(planet, acc) ->
         if Planet.can_be_targeted_for_docking?(planet, player, Map.merge(last_turn, acc)) do
@@ -43,16 +44,46 @@ defmodule Elixirbot do
       end)
 
     # Starting with the ships furthest from the centroid, start attacking the closest enemies
-    ships_without_orders = player
+    {desired_attackers, actual_attackers} = attack_strength(player, Map.merge(last_turn, commands))
+    Logger.info("Will attack with #{actual_attackers} ships out of desired #{desired_attackers}")
+    commands = player
       |> Player.all_ships
       |> flying_ships
       |> without_orders(Map.merge(last_turn, commands))
       |> GameMap.nearby_entities_by_distance_sqrd(centroid)
       |> furthest_away
-      |> Enum.slice(0, attack_strength(map, player, Map.merge(last_turn, commands)))
+      |> Enum.slice(0, actual_attackers)
+      |> attack_with(commands, map, player)
 
-    Logger.info("Will attack with #{ships_without_orders |> length} ships")
-    commands = ships_without_orders
+    {desired_defenders, actual_defenders} = defense_strength(map, player, Map.merge(last_turn, commands))
+    defenders = player
+      |> Player.all_ships
+      |> flying_ships
+      |> without_orders(Map.merge(last_turn, commands))
+      |> GameMap.nearby_entities_by_distance_sqrd(centroid)
+      |> nearest
+      |> Enum.slice(0, actual_defenders)
+    Logger.info("Will defend with #{actual_defenders} ships out of a desired #{desired_defenders}")
+    defenders
+      |> Enum.reduce(commands, fn(ship, cmds) ->
+        planets_with_distances(map, ship)
+          |> prioritize_for_defense(Map.merge(last_turn, commands))
+          |> Keyword.values
+          |> my_planets(player)
+          |> List.first
+          |> navigate_for_defending(%{ map: map, ship: ship })
+          |> add_command(cmds)
+      end)
+
+    player
+      |> Player.all_ships
+      |> flying_ships
+      |> without_orders(Map.merge(last_turn, commands))
+      |> attack_with(commands, map, player)
+  end
+
+  def attack_with(ships, commands, map, player) do
+    ships
       |> Enum.reduce(commands, fn(ship, cmds) ->
         enemy_planet = planets_with_distances(map, ship)
           |> prioritize_for_attack(map)
@@ -60,6 +91,7 @@ defmodule Elixirbot do
           |> enemy_planets(player)
           |> List.first
         if enemy_planet do
+          Logger.info("Ship #{ship.id} will attack planet #{enemy_planet.id}")
           enemy_planet
             |> Planet.all_docked_ships
             |> Enum.reject(&is_nil/1)
@@ -67,52 +99,54 @@ defmodule Elixirbot do
             |> navigate_for_attacking(%{ map: map, ship: ship })
             |> add_command(cmds)
         else
-          cmds
-        end
-      end)
-
-    player
-      |> Player.all_ships
-      |> flying_ships
-      |> without_orders(Map.merge(last_turn, commands))
-      |> Enum.reduce(commands, fn(ship, cmds) ->
-        my_planet = planets_with_distances(map, ship)
-          |> prioritize_for_defense(Map.merge(last_turn, commands))
-          |> Keyword.values
-          |> my_planets(player)
-          |> List.first
-        if my_planet do
-          my_planet
-            |> navigate_for_defending(%{ map: map, ship: ship })
-            |> add_command(cmds)
-        else
+          Logger.info("no enemy planet to target for ship #{ship.id}")
           cmds
         end
       end)
   end
 
   def reinforcement_strength(map, player, orders) do
-    num_ships       = map |> Player.all_planets(player) |> length
+    num_ships       = Player.all_ships(player) |> length
     reinforcers     = orders |> Enum.filter(fn({_, %Ship.Command{ intent: intent } })->
       is_docking?(intent)
     end) |> length
+    Logger.info("Currently reinforcing with #{reinforcers} ships")
     reinforcers     = reinforcers + (map |> GameMap.docked_ships |> length)
     available_spots = map |> available_docking_spots
-    Enum.max([Enum.min([Enum.max([num_ships / 3, 3]), available_spots]) - reinforcers, 0])
+    desired = Enum.min([Enum.max([num_ships / 3, 3]) |> round, available_spots])
+    actual = Enum.max([desired - reinforcers, 0])
+    {desired, actual}
   end
 
-  def attack_strength(map, player, orders) do
-    num_ships = map |> Player.all_planets(player) |> length
+  def attack_strength(player, orders) do
+    num_ships = Player.all_ships(player) |> length
     attackers = orders |> Enum.filter(fn({_, %Ship.Command{ intent: intent } })->
       is_attacking?(intent)
     end) |> length
-    Enum.max([0, num_ships / 3 - attackers]) |> round
+    Logger.info("Currently attacking with #{attackers} ships")
+    desired = Enum.max([num_ships / 3, 1]) |> round
+    actual = Enum.max([0, desired - attackers])
+    {desired, actual}
+  end
+
+  def defense_strength(map, player, orders) do
+    num_ships = Player.all_ships(player) |> length
+    num_controlled_docking_spots = (map |> Player.all_planets(player) |> length) * 3
+    defenders = orders |> Enum.filter(fn({_, %Ship.Command{ intent: intent } })->
+      is_defending?(intent)
+    end) |> length
+    Logger.info("Currently defending with #{defenders} ships")
+    desired = Enum.min([num_controlled_docking_spots, num_ships / 3]) |> round
+    actual = Enum.max([0, desired - defenders])
+    {desired, actual}
   end
 
   def is_docking?(%Ship.DockCommand{}), do: true
   def is_docking?(_), do: false
   def is_attacking?(%Ship.AttackCommand{}), do: true
   def is_attacking?(_), do: false
+  def is_defending?(%Ship.DefendPlanetCommand{}), do: true
+  def is_defending?(_), do: false
 
   def available_docking_spots(map) do
     GameMap.all_planets(map)
@@ -153,12 +187,8 @@ defmodule Elixirbot do
       state
     end
   end
-  def continue_last_turn(%{ ship: ship } = state, %Ship.Command{ intent: %Ship.DefendPlanetCommand{ target: target } }, _) do
-    if Planet.belongs_to_me?(ship, target) do
-      navigate_for_defending(target, state)
-    else
-      state
-    end
+  def continue_last_turn(state, %Ship.Command{ intent: %Ship.DefendPlanetCommand{ target: target } }, _) do
+    navigate_for_defending(target, state)
   end
 
   def docking_spot(planet, ship, orders) do
@@ -223,14 +253,25 @@ defmodule Elixirbot do
     end
   end
 
-  def navigate_for_defending(nil, state), do: state
-  def navigate_for_defending(target, %{ map: map, ship: ship }, speed \\ 7) do
+  def navigate_for_defending(%{ owner: owner } = target, %{ map: map, ship: %{ owner: owner } = ship }) do
     %{
-      # Navigate to the ships docked on the planet
-      Ship.navigate(ship, defensive_position(ship, (target.docked_ships |> List.first) || target), map, speed)
+      if in_defensive_position?(ship, target) do
+        # Stay in position
+        %Ship.Command{
+          command: %Ship.DefendPlanetCommand{ ship: ship, target: target }
+        }
+      else
+        # Navigate to the ships docked on the planet
+        Ship.navigate(ship, defensive_position(ship, (target.docked_ships |> List.first) || target), map, 7)
+      end
       |
       intent: %Ship.DefendPlanetCommand{ ship: ship, target: target }
     }
+  end
+  def navigate_for_defending(_, state), do: state
+
+  def in_defensive_position?(ship, planet) do
+    Position.calculate_distance_between(ship, planet) - planet.radius
   end
 
   def defensive_position(ship, %Planet{} = target) do
@@ -298,6 +339,14 @@ defmodule Elixirbot do
     entities
       |> Enum.sort_by(fn({ dist, _ }) ->
         -dist
+      end)
+      |> Keyword.values
+  end
+
+  def nearest(entities) do
+    entities
+      |> Enum.sort_by(fn({ dist, _ }) ->
+        dist
       end)
       |> Keyword.values
   end
