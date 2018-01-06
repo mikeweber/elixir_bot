@@ -8,6 +8,12 @@ defmodule Player do
     player.ships
   end
 
+  def limited_ships(player) do
+    player
+    |> all_ships
+    |> Enum.slice(0, 50)
+  end
+
   def all_planets(%GameMap{} = map, %Player{} = player) do
     map
       |> GameMap.all_planets

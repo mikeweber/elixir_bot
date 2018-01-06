@@ -3,7 +3,7 @@ defmodule Elixirbot do
 
   def make_move(map, last_turn) do
     player = GameMap.get_me(map)
-    commands = flying_ships(Player.all_ships(player))
+    commands = flying_ships(Player.limited_ships(player))
       |> Enum.reduce(%{}, fn(ship, acc) ->
         %{ map: map, ship: ship }
           |> continue_last_turn(last_turn[ship |> Ship.to_atom], Map.merge(last_turn, acc))
@@ -11,7 +11,7 @@ defmodule Elixirbot do
           |> add_command(acc)
       end)
 
-    centroid = Position.find_centroid(player |> Player.all_ships |> flying_ships, Player.all_planets(map, player))
+    centroid = Position.find_centroid(player |> Player.limited_ships |> flying_ships, Player.all_planets(map, player))
 
     # Target the closest, biggest planets for docking
     planets = planets_with_distances(map, centroid)
@@ -20,7 +20,7 @@ defmodule Elixirbot do
       |> dockable_planets(player)
 
     flying_ships = player
-      |> Player.all_ships
+      |> Player.limited_ships
       |> flying_ships
 
     {desired_reinforcers, actual_reinforcers} = reinforcement_strength(map, player, Map.merge(last_turn, commands))
@@ -47,7 +47,7 @@ defmodule Elixirbot do
     {desired_attackers, actual_attackers} = attack_strength(player, Map.merge(last_turn, commands))
     Logger.info("Will attack with #{actual_attackers} ships out of desired #{desired_attackers}")
     commands = player
-      |> Player.all_ships
+      |> Player.limited_ships
       |> flying_ships
       |> without_orders(Map.merge(last_turn, commands))
       |> GameMap.nearby_entities_by_distance_sqrd(centroid)
@@ -57,7 +57,7 @@ defmodule Elixirbot do
 
     {desired_defenders, actual_defenders} = defense_strength(map, player, Map.merge(last_turn, commands))
     defenders = player
-      |> Player.all_ships
+      |> Player.limited_ships
       |> flying_ships
       |> without_orders(Map.merge(last_turn, commands))
       |> GameMap.nearby_entities_by_distance_sqrd(centroid)
@@ -76,7 +76,7 @@ defmodule Elixirbot do
       end)
 
     player
-      |> Player.all_ships
+      |> Player.limited_ships
       |> flying_ships
       |> without_orders(Map.merge(last_turn, commands))
       |> attack_with(commands, map, player)
@@ -106,7 +106,7 @@ defmodule Elixirbot do
   end
 
   def reinforcement_strength(map, player, orders) do
-    num_ships       = Player.all_ships(player) |> length
+    num_ships       = Player.limited_ships(player) |> length
     reinforcers     = orders |> Enum.filter(fn({_, %Ship.Command{ intent: intent } })->
       is_docking?(intent)
     end) |> length
