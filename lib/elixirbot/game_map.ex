@@ -1,5 +1,5 @@
 defmodule GameMap do
-  defstruct my_id: nil, turn: 0, width: nil, height: nil, players: [], planets: []
+  defstruct my_id: nil, turn: 0, width: nil, height: nil, players: [], planets: [], chart: %{}
 
   # The user's player
   def get_me(map), do: get_player(map, map.my_id)
@@ -46,6 +46,38 @@ defmodule GameMap do
 
   def with_entities(map, turn, { players, planets }) do
     Map.merge(map, %{ turn: turn, players: players, planets: planets})
+  end
+
+  def build_planet_graph(map) do
+    graph = planet_graph(map)
+    %{ map | chart: graph }
+  end
+
+  def planet_graph(map) do
+    build_graph(map, %Graph{}, all_planets(map))
+  end
+
+  def build_graph(map, graph, entities) do
+    entities
+    |> Enum.reduce({0, graph}, fn(entity, {index, graph})->
+      entity_node = Graph.find_or_create_node(graph, { Position.to_atom(entity), entity })
+
+      {
+        index + 1,
+        elem(entities |> Enum.split(index + 1), 1)
+        |> Enum.reduce(graph, fn(other_entity, inner_graph) ->
+          if (length(Position.obstacles_between(map, entity, other_entity, [:ships])) > 0) do
+            # if another entity lies between entity and other_entity, don't add an edge to the graph
+            inner_graph
+          else
+            # Calculate the minimum number of steps it would take to get to the target
+            steps = Float.ciel(Position.calculate_distance_between(entity, other_entity) / 7.0)
+            other_node = Graph.find_or_create_node(graph, { Position.to_atom(other_entity), other_entity })
+            inner_graph |> Graph.add_edge(entity_node, other_node, steps) |> elem(0)
+          end
+        end)
+      }
+    end)
   end
 
   # entity: The source entity to find distances from

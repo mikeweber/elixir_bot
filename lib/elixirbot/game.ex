@@ -74,7 +74,10 @@ defmodule Elixirbot.Game do
   # First turn
   def run(map) do
     Logger.info("---- Turn 0 ----")
-    ships = map |> update_map |> GameMap.get_me |> Player.all_ships
+    Logger.info("Building a map of the planets")
+    map = map |> update_map |> GameMap.build_planet_graph
+    Logger.info("Built a map of the planets")
+    ships = map |> GameMap.get_me |> Player.all_ships
     centroid = Position.find_centroid(ships)
     ships
       |> Enum.reduce(%{}, fn(ship, cmds) ->

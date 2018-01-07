@@ -4,6 +4,10 @@ defmodule Position do
 
   defstruct x: 0.0, y: 0.0, radius: 0.0
 
+  def to_atom(%Planet{} = entity),      do: Planet.to_atom(entity)
+  def to_atom(%Ship{} = entity),        do: Ship.to_atom(entity)
+  def to_atom(%Position{ x: x, y: y }), do: String.to_atom("#{x}x#{y}")
+
   def calculate_distance_between(origin, target) do
     calculate_sqrd_distance_between(origin, target) |> :math.sqrt
   end
@@ -71,7 +75,7 @@ defmodule Position do
   def obstacles_between(map, origin, target, ignore \\ []) do
     entities = []
     entities = if Enum.find_index(ignore, &(&1 == :planets)), do: entities, else: entities ++ GameMap.all_planets(map)
-    entities = if Enum.find_index(ignore, &(&1 == :ships)),   do: entities, else:  entities ++ GameMap.all_ships(map)
+    entities = if Enum.find_index(ignore, &(&1 == :ships)),   do: entities, else: entities ++ GameMap.all_ships(map)
 
     obstacles = entities
       |> GameMap.all_entities_except(origin)

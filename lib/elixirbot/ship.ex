@@ -140,6 +140,10 @@ defmodule Ship do
   # ignore_planets: Whether to ignore planets in calculations (useful if you want to crash onto planets)
   #
   # Return the command trying to be passed to the Halite engine or nil if movement is not possible within max_corrections degrees.
+  def navigate(%Ship{} = ship, target, %GameMap{ chart: chart } = map, speed) do
+    %GraphNode{ entity: new_target } = ship |> Astar.find_path(chart, target) |> List.first
+    navigate(ship, new_target, map, speed)
+  end
   def navigate(ship, target, map, speed, options \\ []) do
     # Default options
     defaults = [avoid_obstacles: true, max_corrections: 21, angular_step: 1.0, ignore_ships: false, ignore_planets: false]

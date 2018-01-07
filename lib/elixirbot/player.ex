@@ -11,7 +11,7 @@ defmodule Player do
   def limited_ships(player) do
     player
     |> all_ships
-    |> Enum.slice(0, 50)
+    |> Enum.slice(0, 75)
   end
 
   def all_planets(%GameMap{} = map, %Player{} = player) do

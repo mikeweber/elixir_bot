@@ -12,6 +12,10 @@ defmodule Planet do
 
   defstruct id: nil, owner: nil, x: nil, y: nil, radius: nil, health: nil, num_docking_spots: nil, docked_ships: []
 
+  def to_atom(planet) do
+    String.to_atom("planet#{planet.id}")
+  end
+
   def get_docked_ship(planet, id) do
     Enum.find(all_docked_ships(planet), fn(ship) ->
       ship.id == id
