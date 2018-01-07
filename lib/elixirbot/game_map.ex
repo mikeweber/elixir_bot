@@ -60,24 +60,41 @@ defmodule GameMap do
   def build_graph(map, graph, entities) do
     entities
     |> Enum.reduce({0, graph}, fn(entity, {index, graph})->
-      entity_node = Graph.find_or_create_node(graph, { Position.to_atom(entity), entity })
-
       {
         index + 1,
-        elem(entities |> Enum.split(index + 1), 1)
+        entities |> Enum.split(index + 1) |> elem(1)
         |> Enum.reduce(graph, fn(other_entity, inner_graph) ->
           if (length(Position.obstacles_between(map, entity, other_entity, [:ships])) > 0) do
             # if another entity lies between entity and other_entity, don't add an edge to the graph
             inner_graph
           else
             # Calculate the minimum number of steps it would take to get to the target
-            steps = Float.ciel(Position.calculate_distance_between(entity, other_entity) / 7.0)
-            other_node = Graph.find_or_create_node(graph, { Position.to_atom(other_entity), other_entity })
-            inner_graph |> Graph.add_edge(entity_node, other_node, steps) |> elem(0)
+            steps = Float.ceil(Position.calculate_distance_between(entity, other_entity) / 7.0)
+
+            source_node = Graph.find_or_create_node(inner_graph, { Entity.to_atom(entity), entity })
+            other_node  = Graph.find_or_create_node(inner_graph, { Entity.to_atom(other_entity), other_entity })
+            inner_graph |> Graph.add_edge(source_node, other_node, steps) |> elem(0)
           end
         end)
       }
     end)
+    |> elem(1)
+  end
+
+  def append_graph(graph, _, []), do: graph
+  def append_graph(%Graph{ nodes: nodes } = graph, map, [new_entity | other_entities]) do
+    Enum.reduce(nodes |> Map.values, graph, fn(%GraphNode{ entity: other_entity } = other_node, graph) ->
+      if (length(Position.obstacles_between(map, new_entity, other_entity, [:ships])) > 0) do
+        graph
+      else
+        new_node = Graph.find_or_create_node(graph, { Entity.to_atom(new_entity), new_entity })
+
+        # Calculate the minimum number of steps it would take to get to the target
+        steps = Float.ceil(Position.calculate_distance_between(new_entity, other_entity) / 7.0)
+        Graph.add_edge(graph, new_node, other_node, steps) |> elem(0)
+      end
+    end)
+    |> append_graph(map, other_entities)
   end
 
   # entity: The source entity to find distances from

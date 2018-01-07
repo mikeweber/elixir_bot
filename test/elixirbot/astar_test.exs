@@ -44,23 +44,39 @@ defmodule AstarTest do
 
   test "can add new points to a pre-built graph" do
     graph = %Graph{}
-    a = %Planet{ id: 1, x:  0.0, y:  0.0, radius: 2 }
-    b = %Planet{ id: 2, x:  0.0, y: 10.0, radius: 2 }
-    c = %Planet{ id: 3, x: 10.0, y: 10.0, radius: 2 }
-    start_point = %Ship{ id: 0, x: -5.0, y: 10.0, radius: 0.5 }
-    end_point   = %Ship{ id: 1, x: 15.0, y: 10.0, radius: 0.5 }
+    a = %Planet{ id: 0, x:  0.0, y:  0.0, radius: 2.0 }
+    b = %Planet{ id: 1, x:  0.0, y: 10.0, radius: 2.0 }
+    c = %Planet{ id: 2, x: 10.0, y: 10.0, radius: 2.0 }
+    d = %Planet{ id: 3, x: 20.0, y: 20.0, radius: 2.0 }
+    start_point = %Ship{ id: 0, x: -10.0, y: -10.0, radius: 0.5 }
+    end_point   = %Ship{ id: 1, x:  13.0, y:  13.0, radius: 0.5 }
 
-    map = %GameMap{ planets: [a, b, c] }
+    map = %GameMap{ planets: %{"0": a, "1": b, "2": c, "3": d} }
     graph = GameMap.planet_graph(map)
 
-    node_a = Graph.get_node(graph, Position.to_atom(a))
-    node_b = Graph.get_node(graph, Position.to_atom(b))
-    node_c = Graph.get_node(graph, Position.to_atom(c))
-    assert [b, c] == Astar.find_path(node_a, graph, node_c)
+    node_a = Graph.get_node(graph, Entity.to_atom(a))
+    node_b = Graph.get_node(graph, Entity.to_atom(b))
+    node_c = Graph.get_node(graph, Entity.to_atom(c))
+    node_d = Graph.get_node(graph, Entity.to_atom(d))
 
-    graph_with_points = GameMap.build_graph(map, graph, [start_point, end_point])
-    node_start = Graph.get_node(graph_with_points, Position.to_atom(start_point))
-    node_end   = Graph.get_node(graph_with_points, Position.to_atom(end_point))
-    assert [b, c, end_point] == Astar.find_path(node_start, graph_with_points, node_end)
+    assert_adjacents node_a, [b, c]
+    assert_adjacents node_b, [a, c, d]
+    assert_adjacents node_c, [a ,b, d]
+    assert_adjacents node_d, [b, c]
+
+    assert [b, d] == Astar.find_path(node_a, graph, node_d) |> Enum.map(&(&1.entity))
+
+    graph_with_points = GameMap.append_graph(graph, map, [start_point, end_point])
+    node_start = Graph.get_node(graph_with_points, Entity.to_atom(start_point))
+    node_end   = Graph.get_node(graph_with_points, Entity.to_atom(end_point))
+
+    assert_adjacents node_start, [a, b]
+    assert_adjacents node_end, [c, d]
+
+    assert [a, c, end_point] == Astar.find_path(node_start, graph_with_points, node_end) |> Enum.map(&(&1.entity))
+  end
+
+  def assert_adjacents(%{ adjacents: adjacents }, expected_entities) do
+    assert Enum.map(expected_entities, &(Entity.to_atom(&1))) == Map.keys(adjacents)
   end
 end

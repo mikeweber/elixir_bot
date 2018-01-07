@@ -4,10 +4,6 @@ defmodule Position do
 
   defstruct x: 0.0, y: 0.0, radius: 0.0
 
-  def to_atom(%Planet{} = entity),      do: Planet.to_atom(entity)
-  def to_atom(%Ship{} = entity),        do: Ship.to_atom(entity)
-  def to_atom(%Position{ x: x, y: y }), do: String.to_atom("#{x}x#{y}")
-
   def calculate_distance_between(origin, target) do
     calculate_sqrd_distance_between(origin, target) |> :math.sqrt
   end
