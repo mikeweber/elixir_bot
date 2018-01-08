@@ -1,5 +1,5 @@
 defmodule GameMap do
-  defstruct my_id: nil, turn: 0, width: nil, height: nil, players: [], planets: [], chart: %{}
+  defstruct my_id: nil, turn: 0, width: nil, height: nil, players: [], planets: [], planet_graph: %{}, nav_points: %{}
 
   # The user's player
   def get_me(map), do: get_player(map, map.my_id)
@@ -49,8 +49,22 @@ defmodule GameMap do
   end
 
   def build_planet_graph(map) do
-    graph = planet_graph(map)
-    %{ map | chart: graph }
+    %{ map | planet_graph: planet_graph(map), nav_points: nav_points(map) }
+  end
+
+  def nav_points(map) do
+    tau = 2 * :math.pi
+
+    map
+    |> all_planets
+    |> Enum.reduce(%Graph{}, fn(%{ x: x, y: y } = planet) ->
+      radius = planet.radius + 3
+      num_points = tau * radius |> round
+      Enum.reduce(1..num_points, graph, fn(i, graph) ->
+        point = %Position{ x: x + :math.cos(i / num_points * tau) * radius, y: y + :math.sin(i / num_points * tau) * radius }
+        Graph.add_node(graph, %GraphNode{ name: Entity.to_atom(point), entity: point })
+      end)
+    end)
   end
 
   def planet_graph(map) do
