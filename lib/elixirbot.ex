@@ -222,7 +222,7 @@ defmodule Elixirbot do
       else
         # Logger.info("Planet #{planet.id} is targeted by Ship #{ship.id}")
         %{
-          Ship.navigate(ship, position_for_docking(ship, planet, orders), map, speed)
+          Ship.plot_course_and_navigate(ship, position_for_docking(ship, planet, orders), map, speed)
           |
           intent: %Ship.DockCommand{ ship: ship, planet: planet }
         }
@@ -246,7 +246,7 @@ defmodule Elixirbot do
       Ship.attack(%{ ship: ship, target: target })
     else
       %{
-        Ship.navigate(ship, Position.closest_point_to(ship, target, GameConstants.weapon_radius), map, speed)
+        Ship.plot_course_and_navigate(ship, Position.closest_point_to(ship, target, GameConstants.weapon_radius), map, speed)
         |
         intent: %Ship.AttackCommand{ ship: ship, target: target }
       }
@@ -262,7 +262,7 @@ defmodule Elixirbot do
         }
       else
         # Navigate to the ships docked on the planet
-        Ship.navigate(ship, defensive_position(ship, (target.docked_ships |> List.first) || target), map, 7)
+        Ship.plot_course_and_navigate(ship, defensive_position(ship, (target.docked_ships |> List.first) || target), map, 7)
       end
       |
       intent: %Ship.DefendPlanetCommand{ ship: ship, target: target }

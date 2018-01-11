@@ -1,8 +1,16 @@
 defmodule GraphNode do
-  defstruct name: nil, entity: nil, adjacents: %{}
+  defstruct name: nil, entity: nil, adjacents: %{}, children: %{}
 
   def add_node(nodes, %GraphNode{ name: name } = new_node) do
     nodes |> Map.put(name, new_node)
+  end
+
+  def add_child(%GraphNode{ children: children } = parent_node, %GraphNode{} = child_node) do
+    %{ parent_node | children: Map.put(children, child_node.name, child_node) }
+  end
+
+  def get_child(%GraphNode{ children: children }, name) do
+    children |> Map.get(name)
   end
 
   def add_edge(%GraphNode{ adjacents: adjacents } = origin, %{ name: neighbor_name, entity: neighbor_entity }, weight) do
@@ -15,6 +23,7 @@ defmodule GraphNode do
 end
 
 defmodule Graph do
+  require Logger
   defstruct nodes: %{}
 
   def add_edge(%Graph{} = graph, %GraphNode{} = node_a, %GraphNode{} = node_b, magnitude) do
@@ -34,5 +43,11 @@ defmodule Graph do
 
   def get_node(%Graph{ nodes: nodes}, name) do
     Map.get(nodes, name)
+  end
+end
+
+defimpl Inspect, for: Graph do
+  def inspect(_, _) do
+    "%Graph{}"
   end
 end

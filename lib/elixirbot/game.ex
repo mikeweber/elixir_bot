@@ -13,9 +13,13 @@ defmodule Elixirbot.Game do
     [width, height] = read_ints_from_input()
     Logger.info "game size: #{width} x #{height}"
     Logger.info "initializing bot #{inspect(name)}"
-    write_to_output(name)
-    %GameMap{my_id: parse_int(player_id), width: width, height: height}
+    start = Time.utc_now()
+    map = %GameMap{ my_id: parse_int(player_id), width: width, height: height }
       |> update_map
+      |> GameMap.build_planet_graph
+    Logger.info("Initialization took #{Time.diff(Time.utc_now(), start)} seconds")
+    write_to_output(name)
+    map
   end
 
   def update_map(map, turn \\ 0) do
@@ -74,9 +78,6 @@ defmodule Elixirbot.Game do
   # First turn
   def run(map) do
     Logger.info("---- Turn 0 ----")
-    Logger.info("Building a map of the planets")
-    map = map |> update_map |> GameMap.build_planet_graph
-    Logger.info("Built a map of the planets")
     ships = map |> GameMap.get_me |> Player.all_ships
     centroid = Position.find_centroid(ships)
     ships

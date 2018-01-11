@@ -15,13 +15,14 @@ defmodule Astar do
   def traverse_graph({frontier, came_from}, graph, %{ entity: target_entity } = target) do
     {current_node_name, frontier} = PriorityQueue.get(frontier)
     current = Graph.get_node(graph, current_node_name)
+    %GraphNode{ adjacents: adjacents, name: current_name } = current
 
     if current == target do
       {frontier, came_from}
     else
-      current.adjacents
+      adjacents
       |> Enum.reduce({frontier, came_from}, fn({next_name, {next_weight, next_entity}}, {frontier, came_from})->
-        new_cost = (came_from[current.name] |> elem(0)) + next_weight
+        new_cost = (came_from[current_name] |> elem(0)) + next_weight
         prev_node = came_from[next_name]
 
         if prev_node && elem(prev_node, 0) <= new_cost do

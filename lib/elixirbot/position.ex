@@ -61,6 +61,10 @@ defmodule Position do
     }
   end
 
+  def no_obstacles?(map, origin, target, ignore \\ []) do
+    obstacles_between(map, origin, target, ignore) |> length == 0
+  end
+
   # Check whether there is a straight-line path to the given point, without planetary obstacles in between.
 
   # ship: Source entity

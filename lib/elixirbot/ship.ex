@@ -140,17 +140,32 @@ defmodule Ship do
   # ignore_planets: Whether to ignore planets in calculations (useful if you want to crash onto planets)
   #
   # Return the command trying to be passed to the Halite engine or nil if movement is not possible within max_corrections degrees.
-  def navigate(%Ship{} = ship, target, %GameMap{ planet_graph: planet_graph, nav_points: nav_points } = map, speed) do
-    graph_with_ships = GameMap.append_graph(planet_graph, map, [ship, target])
-    planetary_route = ship |> Astar.find_path(graph_with_ships, target)
-    filtered_nav_points = Enum.filter(nav_points, fn(planet_node) ->
-      nav_points |> Enum.member_of?(planet_node)
-    end)
-    |> GameMap.append_graph(map, [ship, target])
-    nav_route = Astar.find_path(ship, filtered_nav_points, target)
-    %GraphNode{ entity: new_target } = nav_route |> List.first
-    navigate(ship, new_target, map, speed)
+  def plot_course(%Ship{} = ship, target, %GameMap{ planet_graph: planet_graph } = map) do
+    graph_with_endpoints = GameMap.append_graph(planet_graph, map, [ship, target])
+    origin      = Graph.get_node(graph_with_endpoints, Entity.to_atom(ship))
+    destination = Graph.get_node(graph_with_endpoints, Entity.to_atom(target))
+
+    filtered_graph =
+      origin
+      |> Astar.find_path(graph_with_endpoints, destination)
+      |> Enum.reduce(%Graph{}, fn(%GraphNode{ children: children } = _planet_node, graph) ->
+        children
+        |> Enum.reduce(graph, fn({_, %GraphNode{} = child_node}, graph) ->
+          graph |> Graph.add_node(child_node)
+        end)
+      end)
+      |> GameMap.append_graph(map, [ship, target])
+
+    filtered_graph
+    |> Graph.get_node(Entity.to_atom(ship))
+    |> Astar.find_path(filtered_graph, destination)
   end
+
+  def plot_course_and_navigate(%Ship{} = ship, target, %GameMap{} = map, speed \\ 7) do
+    %GraphNode{ entity: new_target } = plot_course(ship, target, map) |> List.first
+    navigate(ship, new_target, map, speed, false, 0, 1.0, true, true)
+  end
+
   def navigate(ship, target, map, speed, options \\ []) do
     # Default options
     defaults = [avoid_obstacles: true, max_corrections: 21, angular_step: 1.0, ignore_ships: false, ignore_planets: false]
