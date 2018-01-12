@@ -1,5 +1,7 @@
 # https://www.redblobgames.com/pathfinding/a-star/introduction.html
 defmodule Astar do
+  require Logger
+
   def find_path(origin, graph, target) do
     traverse_graph({[{ 0, origin.name }], %{ origin.name => {0,nil} }}, graph, target)
     |> elem(1)
@@ -7,35 +9,35 @@ defmodule Astar do
   end
 
   def inspector(graph) do
-    IO.inspect(graph)
+    Logger.info(inspect graph)
     graph
   end
 
-  def traverse_graph({      [], came_from},     _,      _), do: {[], came_from}
-  def traverse_graph({frontier, came_from}, graph, %{ entity: target_entity } = target) do
+  def traverse_graph({[], came_from}, _, _), do: {[], came_from}
+  def traverse_graph({frontier, came_from}, graph, target) do
     {current_node_name, frontier} = PriorityQueue.get(frontier)
-    current = Graph.get_node(graph, current_node_name)
-    %GraphNode{ adjacents: adjacents, name: current_name } = current
 
-    if current == target do
-      {frontier, came_from}
-    else
-      adjacents
-      |> Enum.reduce({frontier, came_from}, fn({next_name, {next_weight, next_entity}}, {frontier, came_from})->
-        new_cost = (came_from[current_name] |> elem(0)) + next_weight
-        prev_node = came_from[next_name]
+    deep_traverse({frontier, came_from}, graph, target, Graph.get_node(graph, current_node_name))
+  end
 
-        if prev_node && elem(prev_node, 0) <= new_cost do
-          {frontier, came_from}
-        else
-          {
-            frontier  |> PriorityQueue.add({new_cost + heuristic(target_entity, next_entity), next_name}),
-            came_from |> Map.put(next_name, {new_cost, current})
-          }
-        end
-      end)
-      |> traverse_graph(graph, target)
-    end
+  def deep_traverse(state, _, target, target), do: state
+  def deep_traverse(state, _,      _, nil), do: state
+  def deep_traverse({frontier, came_from} = state, graph, %{ entity: target_entity } = target, %GraphNode{ adjacents: adjacents, name: current_name } = current) do
+    adjacents
+    |> Enum.reduce(state, fn({next_name, {next_weight, next_entity}}, state)->
+      new_cost = (came_from[current_name] |> elem(0)) + next_weight
+      prev_node = came_from[next_name]
+
+      if prev_node && elem(prev_node, 0) <= new_cost do
+        state
+      else
+        {
+          frontier  |> PriorityQueue.add({new_cost + heuristic(target_entity, next_entity), next_name}),
+          came_from |> Map.put(next_name, {new_cost, current})
+        }
+      end
+    end)
+    |> traverse_graph(graph, target)
   end
 
   def heuristic(%{ x: x1, y: y1 }, %{ x: x2, y: y2 }) do
