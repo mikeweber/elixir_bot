@@ -1,46 +1,38 @@
-# https://www.redblobgames.com/pathfinding/a-star/introduction.html
+# https://www.redblobgames.com/pathfinding/a-star/implementation.html
 defmodule Astar do
   require Logger
 
   def find_path(origin, graph, target) do
     traverse_graph({[{ 0, origin.name }], %{ origin.name => {0,nil} }}, graph, target)
     |> elem(1)
-    |> rebuild_path(origin, target)
-  end
-
-  def inspector(graph) do
-    IO.inspect(graph)
-    graph
+    |> rebuild_path(graph, origin.name, target.name)
   end
 
   # What to do when one traversal is complete, but there are others to check?!
   def traverse_graph({[], came_from}, _, _), do: {[], came_from}
   def traverse_graph({frontier, came_from}, graph, target) do
     {current_node_name, frontier} = PriorityQueue.get(frontier)
-    current_node = Graph.get_node(graph, current_node_name)
+    current_node = graph |> Graph.get_node(current_node_name)
 
     deep_traverse({frontier, came_from}, graph, target, current_node)
   end
 
   def deep_traverse(state, _, target, target), do: state
-  def deep_traverse({[], came_frome} = state, _, _, _), do: state
-  def deep_traverse(state, graph, %{ entity: target_entity } = target, %GraphNode{ adjacents: adjacents, name: current_name } = current) do
+  def deep_traverse(state, graph, %{ entity: target_entity } = target, %GraphNode{ adjacents: adjacents, name: current_name }) do
     adjacents
     |> Enum.reduce(state, fn({next_name, {next_weight, next_entity}}, {frontier, came_from})->
       new_cost = (came_from[current_name] |> elem(0)) + next_weight
       prev_node = came_from[next_name]
 
       if prev_node && elem(prev_node, 0) <= new_cost do
-        state
+        {frontier, came_from}
       else
-        IO.inspect("Adding #{next_name} to frontier")
         {
           frontier  |> PriorityQueue.add({new_cost + heuristic(target_entity, next_entity), next_name}),
-          came_from |> Map.put(next_name, {new_cost, current})
+          came_from |> Map.put(next_name, {new_cost, current_name})
         }
       end
     end)
-    |> inspector
     |> traverse_graph(graph, target)
   end
 
@@ -49,14 +41,15 @@ defmodule Astar do
   end
   def heuristic(_, _), do: 0
 
-  def rebuild_path(        _,      _,    nil), do: []
-  def rebuild_path(        _, %{ name: origin }, %{ name: origin }), do: []
-  def rebuild_path(came_from, origin, current) do
-    IO.inspect("came from current: #{inspect came_from[current.name]}")
-    if came_from[current.name] do
-      rebuild_path(came_from, origin, (came_from[current.name]) |> elem(1)) ++ [current]
+  def rebuild_path(        _,     _,      _,    nil), do: []
+  def rebuild_path(        _,     _, origin, origin), do: []
+  def rebuild_path(came_from, graph, origin, current) do
+    current_node = graph |> Graph.get_node(current)
+
+    if came_from[current] do
+      rebuild_path(came_from, graph, origin, (came_from[current]) |> elem(1)) ++ [current_node]
     else
-      [current]
+      [current_node]
     end
   end
 end
